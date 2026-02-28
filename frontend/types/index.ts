@@ -7,6 +7,11 @@ export interface User {
   role: 'admin' | 'advogado' | 'assistente' | 'visualizador'
   tenantId: string
   isActive: boolean
+  phone?: string
+  avatarUrl?: string
+  oabNumber?: string
+  oabState?: string
+  oabFormatted?: string
 }
 
 export interface Tenant {
@@ -29,6 +34,8 @@ export interface Lead {
   status: string
   createdAt: string
   updatedAt: string
+  instagramUsername?: string
+  instagramProfilePictureUrl?: string
 }
 
 export interface Client {
@@ -168,4 +175,56 @@ export interface DashboardMetrics {
   periodEnd: string
   comparisonPeriodStart: string
   comparisonPeriodEnd: string
+}
+
+// Petition types
+export type {
+  PeticaoStatus,
+  TipoPeticao,
+  TribunalId,
+  Tribunal,
+  PeticaoDocumento,
+  AnaliseIA,
+  Peticao,
+  PeticaoListItem,
+  PeticaoFilters,
+  CertificadoDigital,
+  PeticaoEvento,
+  NovaPeticaoFormData,
+  UploadedFile,
+} from './peticoes'
+
+// Profile types (snake_case matching backend API response)
+export interface UserProfile {
+  user_id: string
+  email: string
+  full_name: string
+  role: string
+  tenant_id: string
+  phone?: string
+  avatar_url?: string
+  oab_number?: string
+  oab_state?: string
+  oab_formatted?: string
+}
+
+export interface UpdateProfileData {
+  full_name?: string
+  phone?: string
+  oab_number?: string
+  oab_state?: string
+}
+
+export interface ChangePasswordData {
+  current_password: string
+  new_password: string
+  confirm_password: string
+}
+
+// Integration types
+export interface InstagramStatus {
+  connected: boolean
+  username?: string
+  profile_picture_url?: string
+  token_expires_at?: string
 }

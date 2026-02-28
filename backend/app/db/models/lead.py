@@ -107,6 +107,18 @@ class Lead(TenantBaseModel):
         index=True,
         comment="Chatwit contact ID for integration",
     )
+
+    instagram_username: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="Instagram username for DM leads",
+    )
+
+    instagram_profile_picture_url: Mapped[Optional[str]] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="Cached Instagram profile picture URL",
+    )
     
     # Funnel management
     stage: Mapped[LeadStage] = mapped_column(

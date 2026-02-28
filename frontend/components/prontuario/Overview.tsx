@@ -187,6 +187,5 @@ export default function Overview({ clientId }: OverviewProps) {
         </div>
       </div>
     </div>
-    </div >
   );
 }

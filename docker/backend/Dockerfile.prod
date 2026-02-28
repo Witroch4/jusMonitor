@@ -1,0 +1,60 @@
+# =============================================================================
+# Dockerfile.prod — Backend FastAPI (multi-stage)
+# =============================================================================
+
+# ── Stage 1: Build ───────────────────────────────────────────────────────────
+FROM python:3.12-slim AS builder
+
+WORKDIR /app
+
+# Dependências de sistema para build
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Poetry
+RUN pip install --no-cache-dir poetry==1.7.1 && \
+    poetry config virtualenvs.in-project true
+
+# Dependências Python (cache layer)
+COPY backend/pyproject.toml backend/poetry.lock* ./
+RUN poetry lock --no-update --no-interaction 2>/dev/null || true && \
+    poetry install --no-interaction --no-ansi --no-root --only main
+
+# Código-fonte
+COPY backend/ .
+
+# Instala o pacote da aplicação
+RUN poetry install --no-interaction --no-ansi --only main
+
+# ── Stage 2: Runtime ─────────────────────────────────────────────────────────
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Runtime deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    libpq5 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copiar venv do builder
+COPY --from=builder /app/.venv /app/.venv
+COPY --from=builder /app /app
+
+# Usar venv
+ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+
+EXPOSE 8000
+
+# Gunicorn com Uvicorn workers para produção
+CMD ["gunicorn", "app.main:app", \
+     "--worker-class", "uvicorn.workers.UvicornWorker", \
+     "--workers", "4", \
+     "--bind", "0.0.0.0:8000", \
+     "--timeout", "120", \
+     "--graceful-timeout", "30", \
+     "--access-logfile", "-"]

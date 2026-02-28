@@ -335,7 +335,22 @@ app.include_router(dashboard_router, prefix=settings.api_v1_prefix, tags=["dashb
 app.include_router(audit_router, prefix=settings.api_v1_prefix, tags=["audit"])
 app.include_router(webhooks_router, tags=["webhooks"])  # No prefix for webhooks
 
+# Profile and Integrations endpoints
+from app.api.v1.endpoints.profile import router as profile_router
+from app.api.v1.endpoints.integrations import router as integrations_router
+
+app.include_router(profile_router, prefix=settings.api_v1_prefix, tags=["profile"])
+app.include_router(integrations_router, prefix=settings.api_v1_prefix, tags=["integrations"])
+
 # Super Admin endpoints
 from app.api.v1.endpoints.admin import router as admin_router
 
 app.include_router(admin_router, prefix=settings.api_v1_prefix, tags=["admin"])
+
+# Serve static files (avatars, etc.)
+import os
+
+from fastapi.staticfiles import StaticFiles
+
+os.makedirs("static", exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")

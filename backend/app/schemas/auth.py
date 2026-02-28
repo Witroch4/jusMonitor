@@ -78,6 +78,10 @@ class UserInfo(BaseModel):
     role: str
     tenant_id: UUID
     is_super_admin: bool = False
+    phone: Optional[str] = None
+    avatar_url: Optional[str] = None
+    oab_number: Optional[str] = None
+    oab_state: Optional[str] = None
 
     class Config:
         from_attributes = True

@@ -317,4 +317,8 @@ async def get_me(
         role=user.role.value,
         tenant_id=user.tenant_id,
         is_super_admin=user.is_super_admin(),
+        phone=user.phone,
+        avatar_url=user.avatar_url,
+        oab_number=user.oab_number,
+        oab_state=user.oab_state,
     )

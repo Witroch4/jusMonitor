@@ -40,7 +40,11 @@ class Settings(BaseSettings):
     jwt_refresh_token_expire_days: int = 7
 
     # CORS
-    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:3001"]
+    cors_origins: list[str] = [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "https://jusmonitoria.witdev.com.br",
+    ]
     cors_allow_credentials: bool = True
     cors_max_age: int = 600  # 10 minutes
     
@@ -64,6 +68,11 @@ class Settings(BaseSettings):
     cache_default_max_age: int = 0  # seconds, 0 = no cache
     cache_static_max_age: int = 86400  # 1 day for static resources
     cache_api_max_age: int = 60  # 1 minute for cacheable API responses
+
+    # Instagram OAuth
+    instagram_app_id: str = "1543909259581320"
+    instagram_app_secret: str = ""
+    instagram_callback_url: str = "https://jusmonitoria.witdev.com.br/auth/instagram/callback"
 
     # Chatwit
     chatwit_api_url: str = "https://api.chatwit.com/v1"

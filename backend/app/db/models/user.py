@@ -60,6 +60,30 @@ class User(TenantBaseModel):
         nullable=False,
         comment="User full name",
     )
+
+    phone: Mapped[Optional[str]] = mapped_column(
+        String(20),
+        nullable=True,
+        comment="User phone number",
+    )
+
+    avatar_url: Mapped[Optional[str]] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="URL to user avatar image",
+    )
+
+    oab_number: Mapped[Optional[str]] = mapped_column(
+        String(20),
+        nullable=True,
+        comment="OAB registration number (digits only)",
+    )
+
+    oab_state: Mapped[Optional[str]] = mapped_column(
+        String(2),
+        nullable=True,
+        comment="OAB state (2-letter code, e.g. SP, RJ)",
+    )
     
     # Authorization
     role: Mapped[UserRole] = mapped_column(

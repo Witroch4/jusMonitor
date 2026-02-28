@@ -1,0 +1,1 @@
+/home/wital/jusMonitor/CLAUDE.md

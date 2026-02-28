@@ -2,9 +2,23 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { useState, useEffect } from 'react'
+
+import { cn } from '@/lib/utils'
+import {
+  Sidebar as ShadcnSidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarTrigger,
+  useSidebar,
+} from '@/components/ui/sidebar'
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: 'dashboard' },
@@ -21,12 +35,11 @@ export function Sidebar() {
   const pathname = usePathname()
   const { logout } = useAuth()
   const [isDark, setIsDark] = useState(false)
+  const { state } = useSidebar()
+  const isCollapsed = state === 'collapsed'
 
   useEffect(() => {
-    // Check initial theme
-    if (document.documentElement.classList.contains('dark')) {
-      setIsDark(true)
-    }
+    setIsDark(document.documentElement.classList.contains('dark'))
   }, [])
 
   function toggleTheme() {
@@ -39,61 +52,81 @@ export function Sidebar() {
     }
   }
 
-  function handleLogout() {
-    logout()
-  }
-
   return (
-    <aside className="w-64 bg-sidebar border-r border-sidebar-border hidden md:flex flex-col h-full z-10 shrink-0">
-      <div className="p-8">
-        <div className="flex items-center gap-2 mb-10">
-          <span className="material-symbols-outlined text-primary text-3xl">balance</span>
-          <h1 className="font-display text-xl font-bold tracking-tight text-sidebar-foreground leading-tight">
-            JusMonito<span className="text-primary">IA</span>
-          </h1>
-        </div>
+    // bg-sidebar agora funciona corretamente com @theme inline
+    // Removido z-30 para não atropelar o layout e garantindo as bordas corretas
+    <ShadcnSidebar collapsible="icon" className="border-r border-sidebar-border font-sans">
 
-        <nav className="space-y-1">
-          {navigation.map((item) => {
-            const isActive = pathname === item.href
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={cn(
-                  'flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sidebar-foreground',
-                  isActive
-                    ? 'text-primary bg-primary/10 font-semibold border-l-4 border-primary'
-                    : 'opacity-60 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5 font-medium'
-                )}
-              >
-                <span className="material-symbols-outlined">{item.icon}</span>
-                {item.name}
-              </Link>
-            )
-          })}
-        </nav>
-      </div>
 
-      <div className="mt-auto p-8 flex flex-col gap-2">
-        <button
-          onClick={toggleTheme}
-          className="flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold uppercase tracking-widest text-sidebar-foreground transition-all duration-200 opacity-60 hover:opacity-100 hover:bg-black/10 dark:hover:bg-white/10 active:scale-95 text-left w-full"
-        >
-          <span className="material-symbols-outlined text-lg">
-            {isDark ? 'light_mode' : 'dark_mode'}
-          </span>
-          {isDark ? 'Modo Claro' : 'Modo Escuro'}
-        </button>
+      <SidebarHeader className={cn("pt-6 pb-2 transition-all duration-200", isCollapsed ? "px-0 items-center justify-center" : "px-4")}>
+        <SidebarMenu className={isCollapsed ? "items-center justify-center" : ""}>
+          <SidebarMenuItem className={isCollapsed ? "flex items-center justify-center w-full" : ""}>
+            <div className={cn("flex items-center transition-all", isCollapsed ? "justify-center" : "gap-2")}>
+              <span className="material-symbols-outlined text-sidebar-primary text-3xl shrink-0">balance</span>
+              {!isCollapsed && (
+                <h1 className="font-display text-xl font-bold tracking-tight text-sidebar-primary leading-tight truncate whitespace-nowrap">
+                  JusMonito<span className="text-sidebar-foreground">IA</span>
+                </h1>
+              )}
+            </div>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
 
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold uppercase tracking-widest text-sidebar-foreground transition-all duration-200 opacity-60 hover:opacity-100 hover:bg-destructive/20 hover:text-destructive active:scale-95 text-left w-full"
-        >
-          <span className="material-symbols-outlined text-lg">logout</span>
-          Sair
-        </button>
-      </div>
-    </aside>
+      <SidebarContent className="px-2 mt-4">
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu className="gap-1">
+              {navigation.map((item) => {
+                const isActive = pathname === item.href
+                return (
+                  <SidebarMenuItem key={item.name}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive}
+                      tooltip={item.name}
+                      className="h-11 rounded-lg transition-all"
+                    >
+                      <Link href={item.href}>
+                        <span className="material-symbols-outlined shrink-0 text-xl">{item.icon}</span>
+                        <span>{item.name}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+
+      <SidebarFooter className={cn("pb-6 mt-auto border-t border-sidebar-border transition-all duration-200", isCollapsed ? "px-0 py-4 items-center justify-center" : "p-4")}>
+        <SidebarMenu className={cn("gap-1 w-full", isCollapsed ? "items-center justify-center" : "")}>
+          <SidebarMenuItem className={isCollapsed ? "flex items-center justify-center w-full" : ""}>
+            <SidebarMenuButton
+              onClick={toggleTheme}
+              tooltip={isDark ? 'Modo Claro' : 'Modo Escuro'}
+              className={cn("h-10 rounded-lg", isCollapsed ? "justify-center" : "")}
+            >
+              <span className="material-symbols-outlined shrink-0 text-xl">
+                {isDark ? 'light_mode' : 'dark_mode'}
+              </span>
+              {!isCollapsed && <span>{isDark ? 'Modo Claro' : 'Modo Escuro'}</span>}
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+
+          <SidebarMenuItem className={isCollapsed ? "flex items-center justify-center w-full" : ""}>
+            <SidebarMenuButton
+              onClick={logout}
+              tooltip="Sair"
+              className={cn("h-10 rounded-lg hover:bg-destructive/10 hover:text-destructive transition-colors", isCollapsed ? "justify-center" : "")}
+            >
+              <span className="material-symbols-outlined shrink-0 text-xl">logout</span>
+              {!isCollapsed && <span>Sair</span>}
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
+    </ShadcnSidebar>
   )
 }

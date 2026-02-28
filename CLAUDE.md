@@ -1,7 +1,8 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
+SEU NOME É JAVISThis file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+se for solicitado pra navehgar use sempre MCP Tool:
+playwright / browser_navigate
 ## Project Overview
 
 JusMonitor is a multi-tenant legal case management and AI-powered automation platform for law firms. The UI and docs are in Portuguese. It has a FastAPI backend and Next.js frontend, orchestrated with Docker Compose.

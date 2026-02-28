@@ -181,10 +181,18 @@ cmd_build() {
 
   # 8. Sobe todos os servicos
   log_info "Subindo todos os servicos..."
+
+  # Configura a trap para parar os containers graciosamente ao pressionar Ctrl+C
+  trap 'echo -e "\n"; log_warn "Interrompido. Parando containers graciosamente..."; dc stop; log_success "Containers parados."; exit 0' INT
+
   dc up -d
   log_success "Build completo finalizado!"
 
   print_urls
+  log_info "Exibindo logs (Ctrl+C para PARAR os containers graciosamente)..."
+
+  # Exibe os logs e aguarda
+  dc logs -f --tail=100
 }
 
 cmd_build_quick() {

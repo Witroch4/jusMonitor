@@ -1,0 +1,221 @@
+version: "3.8"
+
+# =============================================================================
+# JusMonitor — Stack de Produção (deploy via Portainer / Docker Swarm)
+# =============================================================================
+# URL: https://jusmonitoria.witdev.com.br
+# =============================================================================
+
+# ─── Âncora: variáveis de ambiente compartilhadas (backend + worker) ────────
+x-backend-environment: &backend-environment
+  TZ: "America/Sao_Paulo"
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "WARNING"
+
+  # PostgreSQL (ajuste host/senha conforme seu servidor)
+  DATABASE_URL: "postgresql+asyncpg://jusmonitor:CHANGE_ME_DB_PASSWORD@postgres:5432/jusmonitor"
+  POSTGRES_DB: "jusmonitor"
+  POSTGRES_USER: "jusmonitor"
+  POSTGRES_PASSWORD: "CHANGE_ME_DB_PASSWORD"
+
+  # Redis
+  REDIS_URL: "redis://redis:6379/0"
+
+  # Segurança / JWT
+  SECRET_KEY: "CHANGE_ME_minimum_32_chars_production_secret"
+  JWT_SECRET_KEY: "CHANGE_ME_minimum_32_chars_jwt_secret"
+
+  # Super Admin
+  SUPER_ADMIN_EMAIL: "witalo_rocha@hotmail.com"
+  SUPER_ADMIN_PASSWORD: "CHANGE_ME_ADMIN_PASSWORD"
+
+  # Instagram / Facebook
+  FB_APP_ID: "593019070076189"
+  FB_APP_SECRET: "20308e78a804591afd5d48d9a03a5450"
+  INSTAGRAM_APP_ID: "1543909259581320"
+  INSTAGRAM_APP_SECRET: "00add7cdbf3da20898a25ed06838566a"
+  INSTAGRAM_CALLBACK_URL: "https://jusmonitoria.witdev.com.br/auth/instagram/callback"
+  IG_VERIFY_TOKEN: "00add7cdbf3da20898a25ed06838566a00add7cdbf3da20898a25ed06838566a"
+  IG_API_VERSION: "v23.0"
+
+  # CORS
+  CORS_ORIGINS: '["https://jusmonitoria.witdev.com.br"]'
+
+# =============================================================================
+# Serviços
+# =============================================================================
+services:
+
+  # ─── PostgreSQL ─────────────────────────────────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      <<: *backend-environment
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C.UTF-8"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - internal
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2048M
+
+  # ─── Redis ──────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - internal
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+
+  # ─── Backend API ────────────────────────────────────────────────────────────
+  backend:
+    image: witrocha/jusmonitor-backend:latest
+    command: >
+      sh -c "alembic upgrade head &&
+             gunicorn app.main:app
+             --worker-class uvicorn.workers.UvicornWorker
+             --workers 4
+             --bind 0.0.0.0:8000
+             --timeout 120
+             --graceful-timeout 30
+             --access-logfile -"
+    environment:
+      <<: *backend-environment
+      PYTHONPATH: /app
+    networks:
+      - internal
+      - minha_rede
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2048M
+      labels:
+        - "traefik.enable=true"
+        # API routes
+        - "traefik.http.routers.jusmonitor_api.rule=Host(`jusmonitoria.witdev.com.br`) && PathPrefix(`/api`, `/docs`, `/openapi.json`, `/health`, `/metrics`)"
+        - "traefik.http.routers.jusmonitor_api.entrypoints=websecure"
+        - "traefik.http.routers.jusmonitor_api.tls.certresolver=letsencryptresolver"
+        - "traefik.http.routers.jusmonitor_api.priority=10"
+        - "traefik.http.services.jusmonitor_api.loadbalancer.server.port=8000"
+        - "traefik.http.services.jusmonitor_api.loadbalancer.passHostHeader=true"
+        # WebSocket
+        - "traefik.http.routers.jusmonitor_ws.rule=Host(`jusmonitoria.witdev.com.br`) && PathPrefix(`/ws`)"
+        - "traefik.http.routers.jusmonitor_ws.entrypoints=websecure"
+        - "traefik.http.routers.jusmonitor_ws.tls.certresolver=letsencryptresolver"
+        - "traefik.http.routers.jusmonitor_ws.priority=10"
+        - "traefik.http.services.jusmonitor_ws.loadbalancer.server.port=8000"
+        # Security headers
+        - "traefik.http.routers.jusmonitor_api.middlewares=jusmonitor_secure@swarm"
+        - "traefik.http.middlewares.jusmonitor_secure.headers.stsSeconds=31536000"
+        - "traefik.http.middlewares.jusmonitor_secure.headers.contentTypeNosniff=true"
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  # ─── Worker (Taskiq) ───────────────────────────────────────────────────────
+  worker:
+    image: witrocha/jusmonitor-backend:latest
+    command: >
+      sh -c "taskiq worker app.workers.main:broker
+             --workers 4
+             --max-prefetch 10"
+    environment:
+      <<: *backend-environment
+      PYTHONPATH: /app
+    networks:
+      - internal
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2048M
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  # ─── Frontend (Next.js) ────────────────────────────────────────────────────
+  frontend:
+    image: witrocha/jusmonitor-frontend:latest
+    environment:
+      TZ: "America/Sao_Paulo"
+      NODE_ENV: "production"
+      NEXT_PUBLIC_API_URL: "https://jusmonitoria.witdev.com.br/api/v1"
+      BACKEND_URL: "http://backend:8000"
+    networks:
+      - minha_rede
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1024M
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.jusmonitor_front.rule=Host(`jusmonitoria.witdev.com.br`)"
+        - "traefik.http.routers.jusmonitor_front.entrypoints=websecure"
+        - "traefik.http.routers.jusmonitor_front.tls.certresolver=letsencryptresolver"
+        - "traefik.http.routers.jusmonitor_front.priority=1"
+        - "traefik.http.services.jusmonitor_front.loadbalancer.server.port=3001"
+        - "traefik.http.services.jusmonitor_front.loadbalancer.passHostHeader=true"
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  internal:
+    driver: overlay
+  minha_rede:
+    external: true
+    name: minha_rede

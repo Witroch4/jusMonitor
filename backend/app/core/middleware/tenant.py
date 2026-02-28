@@ -37,6 +37,7 @@ class TenantMiddleware:
         "/openapi.json",
         "/api/v1/auth/login",
         "/api/v1/auth/refresh",
+        "/api/v1/integrations/instagram/callback",
     }
 
     def __init__(self, app: ASGIApp) -> None:

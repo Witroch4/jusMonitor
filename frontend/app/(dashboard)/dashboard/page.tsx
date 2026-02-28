@@ -5,7 +5,7 @@ import React from 'react'
 export default function DashboardPage() {
   return (
     <div className="w-full max-w-[1600px] mx-auto animate-in fade-in duration-500">
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
           <h2 className="font-display text-4xl text-foreground mb-1">Central Operacional</h2>
           <div className="flex items-center gap-2">
@@ -15,33 +15,7 @@ export default function DashboardPage() {
             </span>
           </div>
         </div>
-
-        <div className="flex items-center gap-6 w-full md:w-auto">
-          <div className="relative w-full md:w-auto flex-1 md:flex-none">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-              search
-            </span>
-            <input
-              className="pl-10 pr-4 py-2 w-full md:w-64 rounded-full border border-border bg-card text-foreground focus:ring-primary focus:border-primary placeholder:text-muted-foreground transition-all"
-              placeholder="Buscar..."
-              type="text"
-            />
-          </div>
-          <div className="flex items-center gap-4 shrink-0">
-            <div className="relative">
-              <span className="material-symbols-outlined text-muted-foreground hover:text-primary cursor-pointer transition-colors">
-                notifications
-              </span>
-              <span className="absolute top-0 right-1 w-2 h-2 bg-destructive rounded-full"></span>
-            </div>
-            <img
-              alt="Foto do perfil do Dr. Andrade"
-              className="w-10 h-10 rounded-full border-2 border-primary object-cover shadow-sm opacity-90 hover:opacity-100 transition-opacity"
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuDo9tBkmu-wnq646yNTZ0OVeij5ShVj60o8Cu0F_fgN6cdoOhTStWiTmc_MzdmWmDG71vpKIgBn_vndlF3lJM_5cUadWABARQoTSw93LRYjYMkxVwIcpjZD-Thk5SLRPCwukkDCD3dTDRz65O26UwVVM3yIYXFffn3HjMWKSeN7xMkycK4xc0z9c-o7wOiEgTkA90RhZ4dmJUa5aDz53Iqd0xRWIQ0rra9Ox7ffPG-BuZfA1LQd8g96hEK4oPe1zg8pO6fCw8JPrQ"
-            />
-          </div>
-        </div>
-      </header>
+      </div>
 
       <div className="flex gap-4 mb-8 overflow-x-auto pb-2 no-scrollbar">
         <button className="flex shrink-0 items-center gap-2 px-4 py-2 bg-card border border-border rounded-xl text-sm font-medium text-foreground/80 hover:border-primary hover:text-primary transition-colors shadow-sm">

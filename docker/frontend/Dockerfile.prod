@@ -1,0 +1,55 @@
+# =============================================================================
+# Dockerfile.prod — Frontend Next.js (multi-stage)
+# =============================================================================
+
+# ── Stage 1: Build ───────────────────────────────────────────────────────────
+FROM node:24-alpine AS builder
+
+WORKDIR /app
+
+# pnpm via corepack
+RUN corepack enable && corepack prepare pnpm@10.30.3 --activate
+
+# Build-time args (NEXT_PUBLIC_* são embutidos no bundle)
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+
+# Dependências (cache layer)
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+
+# Código-fonte
+COPY frontend/ .
+
+# Build
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
+RUN pnpm run build
+
+# Prune dev deps
+RUN pnpm prune --prod --ignore-scripts
+
+# Limpa cache desnecessário
+RUN rm -rf .next/cache/webpack && \
+    rm -rf node_modules/.cache && \
+    rm -rf /tmp/*
+
+# ── Stage 2: Runtime ─────────────────────────────────────────────────────────
+FROM node:24-alpine
+
+WORKDIR /app
+
+# Runtime apenas
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Copiar artefatos do build
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/pnpm-lock.yaml ./pnpm-lock.yaml
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+
+EXPOSE 3001
+
+CMD ["node_modules/.bin/next", "start", "-p", "3001"]
