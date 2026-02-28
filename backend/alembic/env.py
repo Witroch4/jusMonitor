@@ -91,6 +91,16 @@ try:
 except ImportError:
     pass
 
+try:
+    from app.db.models import worker_schedule  # noqa: F401
+except ImportError:
+    pass
+
+try:
+    from app.db.models import agent_execution_log  # noqa: F401
+except ImportError:
+    pass
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config

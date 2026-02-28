@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Callable, Optional
 
 from croniter import croniter
@@ -38,7 +38,7 @@ async def trigger_task_now(task_name: str) -> None:
         await session.execute(
             update(WorkerSchedule)
             .where(WorkerSchedule.task_name == task_name)
-            .values(last_run_at=datetime.utcnow())
+            .values(last_run_at=datetime.now(timezone.utc))
         )
         await session.commit()
 
@@ -64,7 +64,7 @@ async def _run_task(task_name: str, func: Callable) -> None:
 
 def _get_next_run(cron_expression: str, base_time: Optional[datetime] = None) -> datetime:
     """Calculate next run time from a cron expression."""
-    base = base_time or datetime.utcnow()
+    base = base_time or datetime.now(timezone.utc)
     cron = croniter(cron_expression, base)
     return cron.get_next(datetime)
 
@@ -81,7 +81,7 @@ async def _scheduler_loop() -> None:
                 )
                 schedules = result.scalars().all()
 
-                now = datetime.utcnow()
+                now = datetime.now(timezone.utc)
 
                 for schedule in schedules:
                     # Calculate next run if not set
@@ -106,7 +106,7 @@ async def _scheduler_loop() -> None:
                 await session.commit()
 
         except Exception as e:
-            logger.error("scheduler_loop_error", extra={"error": str(e)})
+            logger.error(f"scheduler_loop_error: {e}", exc_info=True)
 
         await asyncio.sleep(30)
 
