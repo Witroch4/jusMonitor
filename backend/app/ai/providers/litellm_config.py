@@ -19,7 +19,7 @@ from app.db.models.ai_provider import AIProvider
 
 # Configure LiteLLM
 litellm.drop_params = True  # Drop unsupported params instead of erroring
-litellm.set_verbose = settings.debug
+litellm.verbose = settings.debug
 
 
 class CircuitBreaker:

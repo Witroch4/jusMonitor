@@ -13,7 +13,8 @@ from app.db.base import TenantBaseModel
 
 class UserRole(str, enum.Enum):
     """User roles for RBAC."""
-    
+
+    SUPER_ADMIN = "super_admin"
     ADMIN = "admin"
     LAWYER = "lawyer"
     ASSISTANT = "assistant"
@@ -106,3 +107,7 @@ class User(TenantBaseModel):
     def is_admin(self) -> bool:
         """Check if user is an admin."""
         return self.role == UserRole.ADMIN
+
+    def is_super_admin(self) -> bool:
+        """Check if user is a super admin."""
+        return self.role == UserRole.SUPER_ADMIN

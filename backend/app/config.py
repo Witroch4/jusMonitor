@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     jwt_refresh_token_expire_days: int = 7
 
     # CORS
-    cors_origins: list[str] = ["http://localhost:3000"]
+    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:3001"]
     cors_allow_credentials: bool = True
     cors_max_age: int = 600  # 10 minutes
     
@@ -111,6 +111,11 @@ class Settings(BaseSettings):
     # Monitoring
     prometheus_enabled: bool = True
     sentry_dsn: str = ""
+
+    # Super Admin
+    super_admin_email: str = ""
+    super_admin_password: str = ""
+    scheduler_enabled: bool = True
 
     @property
     def is_development(self) -> bool:

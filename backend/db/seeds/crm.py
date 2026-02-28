@@ -270,24 +270,49 @@ async def run_crm_seed(
 ) -> dict:
     """
     Run complete CRM seed.
-    
+
     Args:
         session: Database session
         tenant_id: Tenant ID
         user_ids: List of user IDs
-        
+
     Returns:
         Dictionary with created leads and clients
     """
+    from sqlalchemy import select, func
+
     print("\n=== Seeding CRM Data (Leads & Clients) ===")
-    
-    leads = await seed_leads(session, tenant_id, user_ids, count=20)
-    clients = await seed_clients(session, tenant_id, user_ids, count=10)
-    
+
+    # Check if data already exists
+    lead_count = (await session.execute(
+        select(func.count()).select_from(Lead).where(Lead.tenant_id == tenant_id)
+    )).scalar_one()
+
+    client_count = (await session.execute(
+        select(func.count()).select_from(Client).where(Client.tenant_id == tenant_id)
+    )).scalar_one()
+
+    leads = []
+    clients = []
+
+    if lead_count > 0:
+        print(f"✓ Leads already exist ({lead_count}), skipping")
+        result = await session.execute(select(Lead).where(Lead.tenant_id == tenant_id))
+        leads = list(result.scalars().all())
+    else:
+        leads = await seed_leads(session, tenant_id, user_ids, count=20)
+
+    if client_count > 0:
+        print(f"✓ Clients already exist ({client_count}), skipping")
+        result = await session.execute(select(Client).where(Client.tenant_id == tenant_id))
+        clients = list(result.scalars().all())
+    else:
+        clients = await seed_clients(session, tenant_id, user_ids, count=10)
+
     await session.commit()
-    
+
     print(f"\n✓ CRM seed completed: {len(leads)} leads, {len(clients)} clients")
-    
+
     return {
         "leads": leads,
         "clients": clients,

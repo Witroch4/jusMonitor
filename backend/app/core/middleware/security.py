@@ -1,11 +1,11 @@
 """Security middleware for headers and input validation."""
 
+import json
 import re
-from typing import Callable
 
-from fastapi import Request, Response, status
-from fastapi.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.config import settings
 from app.core.logging import get_logger
@@ -34,102 +34,120 @@ SQL_INJECTION_PATTERNS = [
     re.compile(r"(\bDELETE\b.*\bFROM\b)", re.IGNORECASE),
     re.compile(r"(\bDROP\b.*\bTABLE\b)", re.IGNORECASE),
     re.compile(r"(--|#|/\*|\*/)", re.IGNORECASE),  # SQL comments
-    re.compile(r"(\bOR\b\s+['\"]?\d+['\"]?\s*=\s*['\"]?\d+['\"]?)", re.IGNORECASE),  # OR 1=1 or OR '1'='1'
-    re.compile(r"(\bAND\b\s+['\"]?\d+['\"]?\s*=\s*['\"]?\d+['\"]?)", re.IGNORECASE),  # AND 1=1 or AND '1'='1'
+    re.compile(r"(\bOR\b\s+['\"]?\d+['\"]?\s*=\s*['\"]?\d+['\"]?)", re.IGNORECASE),
+    re.compile(r"(\bAND\b\s+['\"]?\d+['\"]?\s*=\s*['\"]?\d+['\"]?)", re.IGNORECASE),
 ]
 
 
 def detect_xss(text: str) -> bool:
-    """
-    Detect potential XSS attacks in text.
-    
-    Args:
-        text: Text to check
-        
-    Returns:
-        True if XSS pattern detected, False otherwise
-    """
+    """Detect potential XSS attacks in text."""
     if not isinstance(text, str):
         return False
-    
     for pattern in XSS_PATTERNS:
         if pattern.search(text):
             return True
-    
     return False
 
 
 def detect_sql_injection(text: str) -> bool:
-    """
-    Detect potential SQL injection attacks in text.
-    
-    Args:
-        text: Text to check
-        
-    Returns:
-        True if SQL injection pattern detected, False otherwise
-    """
+    """Detect potential SQL injection attacks in text."""
     if not isinstance(text, str):
         return False
-    
     for pattern in SQL_INJECTION_PATTERNS:
         if pattern.search(text):
             return True
-    
     return False
 
 
 def sanitize_input(data: dict | list | str) -> dict | list | str:
     """
-    Recursively sanitize input data by checking for XSS and SQL injection.
-    
-    Note: This is a detection mechanism, not a sanitization mechanism.
-    We use Pydantic for validation and SQLAlchemy with parameterized queries
-    for actual protection. This is an additional layer of defense.
-    
-    Args:
-        data: Data to sanitize (dict, list, or str)
-        
-    Returns:
-        Original data if safe
-        
-    Raises:
-        ValueError: If malicious pattern detected
+    Recursively check input data for XSS and SQL injection.
+
+    Raises ValueError if malicious pattern detected.
     """
     if isinstance(data, dict):
         for key, value in data.items():
+            # Skip checking password fields as they often contain special characters
+            if key.lower() in ("password", "password_confirm", "new_password", "old_password"):
+                logger.debug("Skipping security sanitization for password field", extra={"field": key})
+                continue
             sanitize_input(value)
     elif isinstance(data, list):
         for item in data:
             sanitize_input(item)
     elif isinstance(data, str):
         if detect_xss(data):
-            raise ValueError(f"Potential XSS attack detected in input")
+            raise ValueError("Potential XSS attack detected in input")
         if detect_sql_injection(data):
-            raise ValueError(f"Potential SQL injection detected in input")
-    
+            raise ValueError("Potential SQL injection detected in input")
     return data
 
 
-class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+def _build_security_headers() -> dict[str, str]:
+    """Build security response headers."""
+    headers: dict[str, str] = {}
+
+    # Content Security Policy
+    csp_directives = [
+        "default-src 'self'",
+        "script-src 'self'",
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data: https:",
+        "font-src 'self' data:",
+        "connect-src 'self'",
+        "frame-ancestors 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+    ]
+    if settings.is_development:
+        csp_directives.append("connect-src 'self' ws://localhost:* http://localhost:*")
+    headers["content-security-policy"] = "; ".join(csp_directives)
+
+    if settings.is_production:
+        headers["strict-transport-security"] = (
+            "max-age=31536000; includeSubDomains; preload"
+        )
+
+    headers["x-content-type-options"] = "nosniff"
+    headers["x-frame-options"] = "DENY"
+    headers["x-xss-protection"] = "1; mode=block"
+    headers["referrer-policy"] = "strict-origin-when-cross-origin"
+
+    permissions_policy = [
+        "geolocation=()",
+        "microphone=()",
+        "camera=()",
+        "payment=()",
+        "usb=()",
+        "magnetometer=()",
+        "gyroscope=()",
+        "accelerometer=()",
+    ]
+    headers["permissions-policy"] = ", ".join(permissions_policy)
+
+    return headers
+
+
+# Pre-compute security headers once at import time
+_SECURITY_HEADERS = _build_security_headers()
+
+
+class SecurityHeadersMiddleware:
     """
-    Middleware to add security headers to all responses.
-    
-    Adds:
-    - Content-Security-Policy (CSP)
-    - Strict-Transport-Security (HSTS)
-    - X-Content-Type-Options
-    - X-Frame-Options
-    - X-XSS-Protection
-    - Referrer-Policy
-    - Permissions-Policy
+    Pure ASGI middleware for security headers and input validation.
     """
-    
-    async def dispatch(
-        self, request: Request, call_next: Callable
-    ) -> Response:
-        """Add security headers to response."""
-        
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        request = Request(scope, receive)
+        method = scope.get("method", "GET")
+
         # Validate payload size
         content_length = request.headers.get("content-length")
         if content_length:
@@ -143,114 +161,66 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
                         path=request.url.path,
                         client_ip=request.client.host if request.client else None,
                     )
-                    return JSONResponse(
-                        status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                    response = JSONResponse(
+                        status_code=413,
                         content={
                             "detail": f"Payload too large. Maximum size is {MAX_PAYLOAD_SIZE} bytes"
                         },
                     )
+                    await response(scope, receive, send)
+                    return
             except ValueError:
                 pass
-        
-        # Validate input for XSS and SQL injection (for JSON payloads)
-        if request.method in ["POST", "PUT", "PATCH"]:
+
+        # Validate input for XSS and SQL injection (JSON payloads on write methods)
+        if method in ("POST", "PUT", "PATCH"):
             content_type = request.headers.get("content-type", "")
             if "application/json" in content_type:
                 try:
-                    # Read body
                     body = await request.body()
-                    
-                    # Parse JSON and validate
                     if body:
-                        import json
                         try:
                             data = json.loads(body)
                             sanitize_input(data)
                         except json.JSONDecodeError:
-                            # Let FastAPI handle invalid JSON
                             pass
                         except ValueError as e:
                             logger.warning(
                                 "malicious_input_detected",
                                 error=str(e),
                                 path=request.url.path,
-                                method=request.method,
+                                method=method,
                                 client_ip=request.client.host if request.client else None,
                             )
-                            return JSONResponse(
-                                status_code=status.HTTP_400_BAD_REQUEST,
+                            response = JSONResponse(
+                                status_code=400,
                                 content={"detail": str(e)},
                             )
-                    
-                    # Reconstruct request with body
-                    async def receive():
-                        return {"type": "http.request", "body": body}
-                    
-                    request._receive = receive
-                    
+                            await response(scope, receive, send)
+                            return
+
+                    # Replace receive so downstream can re-read the body
+                    body_consumed = body
+
+                    async def new_receive() -> Message:
+                        return {"type": "http.request", "body": body_consumed}
+
+                    receive = new_receive
+
                 except Exception as e:
                     logger.error(
                         "security_validation_error",
                         error=str(e),
                         error_type=type(e).__name__,
                     )
-        
-        # Process request
-        response = await call_next(request)
-        
-        # Add security headers
-        
-        # Content Security Policy
-        # Restrictive policy that only allows same-origin resources
-        csp_directives = [
-            "default-src 'self'",
-            "script-src 'self'",
-            "style-src 'self' 'unsafe-inline'",  # unsafe-inline needed for some UI frameworks
-            "img-src 'self' data: https:",
-            "font-src 'self' data:",
-            "connect-src 'self'",
-            "frame-ancestors 'none'",  # Prevent clickjacking
-            "base-uri 'self'",
-            "form-action 'self'",
-        ]
-        
-        # In development, allow localhost origins
-        if settings.is_development:
-            csp_directives.append("connect-src 'self' ws://localhost:* http://localhost:*")
-        
-        response.headers["Content-Security-Policy"] = "; ".join(csp_directives)
-        
-        # Strict Transport Security (HSTS)
-        # Only add in production with HTTPS
-        if settings.is_production:
-            response.headers["Strict-Transport-Security"] = (
-                "max-age=31536000; includeSubDomains; preload"
-            )
-        
-        # Prevent MIME type sniffing
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        
-        # Prevent clickjacking
-        response.headers["X-Frame-Options"] = "DENY"
-        
-        # XSS Protection (legacy, but still useful for older browsers)
-        response.headers["X-XSS-Protection"] = "1; mode=block"
-        
-        # Referrer Policy
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        
-        # Permissions Policy (formerly Feature Policy)
-        # Disable potentially dangerous features
-        permissions_policy = [
-            "geolocation=()",
-            "microphone=()",
-            "camera=()",
-            "payment=()",
-            "usb=()",
-            "magnetometer=()",
-            "gyroscope=()",
-            "accelerometer=()",
-        ]
-        response.headers["Permissions-Policy"] = ", ".join(permissions_policy)
-        
-        return response
+
+        # Wrap send to inject security headers into response
+        async def send_with_headers(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                headers = list(message.get("headers", []))
+                for key, value in _SECURITY_HEADERS.items():
+                    headers.append((key.encode(), value.encode()))
+                message = {**message, "headers": headers}
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)

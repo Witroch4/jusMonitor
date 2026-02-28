@@ -15,6 +15,7 @@ from app.core.middleware.metrics import MetricsMiddleware
 from app.core.middleware.rate_limit import RateLimitMiddleware
 from app.core.middleware.security import SecurityHeadersMiddleware
 from app.core.middleware.shutdown import ShutdownMiddleware
+from app.core.middleware.tenant import TenantMiddleware
 from app.core.shutdown import setup_graceful_shutdown
 from app.db.engine import close_db
 from app.workers.broker import broker
@@ -56,7 +57,14 @@ async def lifespan(app: FastAPI):
     
     # Register database cleanup callback
     shutdown_handler.register_shutdown_callback(close_db)
-    
+
+    # Start task scheduler
+    if settings.scheduler_enabled:
+        from app.workers.scheduler import start_scheduler, stop_scheduler
+        await start_scheduler()
+        logger.info("task_scheduler_started")
+        shutdown_handler.register_shutdown_callback(stop_scheduler)
+
     yield
     
     # Shutdown
@@ -204,6 +212,10 @@ Endpoints de listagem suportam paginação via query parameters:
             "name": "audit",
             "description": "Logs de auditoria de operações",
         },
+        {
+            "name": "admin",
+            "description": "Super Admin: gestão de tenants, users, agentes IA, workers e métricas globais",
+        },
     ],
 )
 
@@ -241,6 +253,7 @@ if settings.cache_enabled:
 app.add_middleware(AuditMiddleware)
 app.add_middleware(MetricsMiddleware)
 app.add_middleware(LoggingMiddleware)
+app.add_middleware(TenantMiddleware)  # Extract tenant_id from JWT/header into request.state
 app.add_middleware(ShutdownMiddleware)  # Track in-flight requests
 app.add_middleware(RateLimitMiddleware)  # Rate limiting before CORS
 
@@ -264,6 +277,7 @@ app.add_middleware(
         "DNT",
         "Cache-Control",
         "X-Requested-With",
+        "X-Tenant-ID",
     ],  # Explicit headers
     expose_headers=["Content-Length", "X-Request-ID"],
     max_age=settings.cors_max_age,
@@ -320,3 +334,8 @@ app.include_router(clients_router, prefix=settings.api_v1_prefix, tags=["clients
 app.include_router(dashboard_router, prefix=settings.api_v1_prefix, tags=["dashboard"])
 app.include_router(audit_router, prefix=settings.api_v1_prefix, tags=["audit"])
 app.include_router(webhooks_router, tags=["webhooks"])  # No prefix for webhooks
+
+# Super Admin endpoints
+from app.api.v1.endpoints.admin import router as admin_router
+
+app.include_router(admin_router, prefix=settings.api_v1_prefix, tags=["admin"])

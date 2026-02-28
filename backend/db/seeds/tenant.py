@@ -20,11 +20,23 @@ DEMO_TENANT_ID = UUID("00000000-0000-0000-0000-000000000001")
 
 async def seed_tenant(session: AsyncSession) -> Tenant:
     """
-    Create demo tenant "Demo Law Firm".
-    
+    Create demo tenant "Demo Law Firm" or return existing one.
+
     Returns:
-        Created tenant instance
+        Created or existing tenant instance
     """
+    from sqlalchemy import select
+
+    # Check if tenant already exists
+    result = await session.execute(
+        select(Tenant).where(Tenant.id == DEMO_TENANT_ID)
+    )
+    existing = result.scalar_one_or_none()
+
+    if existing:
+        print(f"✓ Tenant already exists: {existing.name} (ID: {existing.id})")
+        return existing
+
     tenant = Tenant(
         id=DEMO_TENANT_ID,
         name="Demo Law Firm",
@@ -39,10 +51,10 @@ async def seed_tenant(session: AsyncSession) -> Tenant:
             "max_cases": 1000,
         }
     )
-    
+
     session.add(tenant)
     await session.flush()
-    
+
     print(f"✓ Created tenant: {tenant.name} (ID: {tenant.id})")
     return tenant
 
@@ -79,9 +91,23 @@ async def seed_users(session: AsyncSession, tenant_id: UUID) -> list[User]:
         },
     ]
     
+    from sqlalchemy import select
+
     users = []
     for user_data in users_data:
         password = user_data.pop("password")
+
+        # Check if user already exists
+        result = await session.execute(
+            select(User).where(User.email == user_data["email"])
+        )
+        existing = result.scalar_one_or_none()
+
+        if existing:
+            print(f"✓ User already exists: {existing.full_name} ({existing.email})")
+            users.append(existing)
+            continue
+
         user = User(
             tenant_id=tenant_id,
             password_hash=pwd_context.hash(password),
@@ -90,12 +116,10 @@ async def seed_users(session: AsyncSession, tenant_id: UUID) -> list[User]:
         )
         session.add(user)
         users.append(user)
-    
-    await session.flush()
-    
-    for user in users:
         print(f"✓ Created user: {user.full_name} ({user.email}) - Role: {user.role}")
-    
+
+    await session.flush()
+
     return users
 
 

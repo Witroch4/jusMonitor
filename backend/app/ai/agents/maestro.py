@@ -5,7 +5,7 @@ from typing import Annotated, Any, Literal, Optional, Sequence, TypedDict
 from uuid import UUID
 
 import operator
-from langgraph.graph import END, StateGraph
+from langgraph.graph import END, START, StateGraph
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agents.base_agent import BaseAgent
@@ -118,7 +118,7 @@ RESPONDA EM JSON:
         workflow.add_node("redator", self._redator_node)
         
         # Set entry point
-        workflow.set_entry_point("maestro")
+        workflow.add_edge(START, "maestro")
         
         # Add conditional edges from maestro
         workflow.add_conditional_edges(

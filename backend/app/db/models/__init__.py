@@ -22,6 +22,8 @@ from app.db.models.timeline_event import TimelineEvent
 from app.db.models.user import User, UserRole
 from app.db.models.user_preference import UserPreference
 from app.db.models.notification import Notification
+from app.db.models.agent_execution_log import AgentExecutionLog
+from app.db.models.worker_schedule import WorkerSchedule
 
 __all__ = [
     "Tenant",
@@ -49,4 +51,6 @@ __all__ = [
     "Event",
     "Automation",
     "AuditLog",
+    "AgentExecutionLog",
+    "WorkerSchedule",
 ]

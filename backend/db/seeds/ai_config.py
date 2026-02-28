@@ -158,20 +158,33 @@ async def run_ai_config_seed(
 ) -> dict:
     """
     Run complete AI configuration seed.
-    
+
     Args:
         session: Database session
         tenant_id: Tenant ID
-        
+
     Returns:
         Dictionary with created AI providers
     """
+    from sqlalchemy import select, func
+
     print("\n=== Seeding AI Provider Configurations ===")
-    
+
+    # Check if providers already exist
+    provider_count = (await session.execute(
+        select(func.count()).select_from(AIProvider).where(AIProvider.tenant_id == tenant_id)
+    )).scalar_one()
+
+    if provider_count > 0:
+        print(f"✓ AI providers already exist ({provider_count}), skipping")
+        result = await session.execute(select(AIProvider).where(AIProvider.tenant_id == tenant_id))
+        ai_providers = list(result.scalars().all())
+        return {"ai_providers": ai_providers}
+
     ai_providers = await seed_ai_providers(session, tenant_id)
-    
+
     await session.commit()
-    
+
     print(f"\n✓ AI config seed completed: {len(ai_providers)} providers configured")
     print("\n⚠ Note: Demo API keys are placeholders.")
     print("  Set real API keys via environment variables:")

@@ -252,7 +252,7 @@ async def seed_case_movements(
             description = generate_movement_description(movement_type)
             
             # Create content hash for deduplication
-            content = f"{legal_case.cnj_number}_{current_date}_{description}"
+            content = f"{legal_case.cnj_number}_{current_date}_{description}_{i}"
             content_hash = hashlib.sha256(content.encode()).hexdigest()
             
             # Determine importance (20% are important)
@@ -323,27 +323,50 @@ async def run_legal_cases_seed(
 ) -> dict:
     """
     Run complete legal cases seed.
-    
+
     Args:
         session: Database session
         tenant_id: Tenant ID
         clients: List of clients
-        
+
     Returns:
         Dictionary with created cases and movements
     """
+    from sqlalchemy import select, func
+
     print("\n=== Seeding Legal Cases and Movements ===")
-    
+
+    # Check if data already exists
+    case_count = (await session.execute(
+        select(func.count()).select_from(LegalCase).where(LegalCase.tenant_id == tenant_id)
+    )).scalar_one()
+
+    if case_count > 0:
+        print(f"✓ Legal cases already exist ({case_count}), skipping")
+        result = await session.execute(select(LegalCase).where(LegalCase.tenant_id == tenant_id))
+        legal_cases = list(result.scalars().all())
+
+        mov_count = (await session.execute(
+            select(func.count()).select_from(CaseMovement).where(CaseMovement.tenant_id == tenant_id)
+        )).scalar_one()
+
+        print(f"✓ Case movements already exist ({mov_count}), skipping")
+
+        return {
+            "legal_cases": legal_cases,
+            "movements": [],
+        }
+
     legal_cases = await seed_legal_cases(session, tenant_id, clients, count=15)
     movements = await seed_case_movements(session, tenant_id, legal_cases)
-    
+
     # Note: Skipping actual embedding generation for seed data
     await generate_embeddings_for_movements(session, movements)
-    
+
     await session.commit()
-    
+
     print(f"\n✓ Legal cases seed completed: {len(legal_cases)} cases, {len(movements)} movements")
-    
+
     return {
         "legal_cases": legal_cases,
         "movements": movements,

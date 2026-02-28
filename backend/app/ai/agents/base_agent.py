@@ -2,6 +2,7 @@
 
 import json
 import logging
+import time
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 from uuid import UUID
@@ -89,6 +90,10 @@ class BaseAgent(ABC):
         
         messages.append({"role": "user", "content": user_message})
         
+        start_time = time.monotonic()
+        execution_status = "success"
+        error_msg = None
+
         try:
             # Call LLM with provider fallback
             response = await self.provider_manager.call_llm(
@@ -96,7 +101,7 @@ class BaseAgent(ABC):
                 temperature=temperature,
                 max_tokens=max_tokens,
             )
-            
+
             logger.info(
                 f"{self.get_agent_name()} agent completed",
                 extra={
@@ -104,10 +109,12 @@ class BaseAgent(ABC):
                     "response_length": len(response),
                 },
             )
-            
+
             return response
-        
+
         except Exception as e:
+            execution_status = "error"
+            error_msg = str(e)
             logger.error(
                 f"{self.get_agent_name()} agent failed",
                 extra={
@@ -116,7 +123,45 @@ class BaseAgent(ABC):
                 },
             )
             raise
+
+        finally:
+            duration_ms = int((time.monotonic() - start_time) * 1000)
+            await self._log_execution(
+                status=execution_status,
+                duration_ms=duration_ms,
+                error_message=error_msg,
+            )
     
+    async def _log_execution(
+        self,
+        status: str,
+        duration_ms: int,
+        error_message: Optional[str] = None,
+    ) -> None:
+        """Log agent execution to agent_execution_logs table."""
+        try:
+            from app.db.models.agent_execution_log import AgentExecutionLog
+
+            log_entry = AgentExecutionLog(
+                tenant_id=self.tenant_id,
+                agent_name=self.get_agent_name(),
+                status=status,
+                input_tokens=0,  # TODO: extract from LLM response metadata
+                output_tokens=0,
+                total_tokens=0,
+                provider_used=getattr(self.provider_manager, "last_provider_used", "unknown"),
+                model_used=getattr(self.provider_manager, "last_model_used", "unknown"),
+                duration_ms=duration_ms,
+                error_message=error_message,
+            )
+            self.session.add(log_entry)
+            await self.session.flush()
+        except Exception as log_err:
+            logger.warning(
+                "Failed to log agent execution",
+                extra={"error": str(log_err)},
+            )
+
     def _format_context(self, context: dict[str, Any]) -> str:
         """
         Format context dictionary for LLM.

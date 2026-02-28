@@ -2,8 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { useLeads, useUpdateLeadStage } from '@/hooks/api/useLeads'
-import { KanbanBoard } from '@/components/funil/KanbanBoard'
-import { LeadDetailsModal } from '@/components/funil/LeadDetailsModal'
+import dynamic from 'next/dynamic'
+
+const KanbanBoard = dynamic(() => import('@/components/funil/KanbanBoard').then(m => m.KanbanBoard), {
+  loading: () => <div className="flex h-full items-center justify-center"><div className="text-gray-500">Carregando quadro...</div></div>,
+})
+const LeadDetailsModal = dynamic(() => import('@/components/funil/LeadDetailsModal').then(m => m.LeadDetailsModal))
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
@@ -94,82 +98,95 @@ export default function FunilPage() {
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="border-b bg-white p-6">
-        <h1 className="text-2xl font-bold text-gray-900">Funil de Leads</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Gerencie seus leads através do funil de vendas
-        </p>
+      <div className="flex-none p-8 lg:px-12 pb-6 border-b border-border/40 bg-background transition-colors duration-300">
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl md:text-4xl font-serif font-bold text-foreground tracking-tight">Funil de Leads</h1>
+            <p className="mt-2 text-sm font-medium text-muted-foreground tracking-wide">
+              Gestão estratégica e acompanhamento da jornada do cliente
+            </p>
+          </div>
+          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium shadow-sm transition-all duration-300">
+            <span className="material-icons-outlined text-sm mr-2">add</span>
+            Novo Lead
+          </Button>
+        </header>
       </div>
 
       {/* Filters */}
-      <div className="border-b bg-white p-4">
-        <div className="flex flex-wrap gap-4">
-          {/* Search */}
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <Input
-              placeholder="Buscar por nome, telefone ou email..."
-              value={filters.searchQuery}
-              onChange={(e) => setFilters({ ...filters, searchQuery: e.target.value })}
-              className="pl-10"
-            />
+      <div className="flex-none border-b border-border/40 bg-muted/10 p-4 lg:px-12">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-4 flex-1">
+            {/* Search */}
+            <div className="relative flex-1 min-w-[250px] max-w-md">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por nome, telefone ou email..."
+                value={filters.searchQuery}
+                onChange={(e) => setFilters({ ...filters, searchQuery: e.target.value })}
+                className="pl-10 border-border/60 bg-white shadow-sm focus-visible:ring-primary/20 transition-all rounded-lg"
+              />
+            </div>
+
+            {/* Source Filter */}
+            <Select
+              value={filters.sourceFilter}
+              onValueChange={(value) => setFilters({ ...filters, sourceFilter: value })}
+            >
+              <SelectTrigger className="w-[180px] bg-white border-border/60 shadow-sm rounded-lg hover:bg-muted/30 transition-colors">
+                <Filter className="mr-2 h-4 w-4" />
+                <SelectValue placeholder="Fonte" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as fontes</SelectItem>
+                <SelectItem value="chatwit">Chatwit</SelectItem>
+                <SelectItem value="website">Website</SelectItem>
+                <SelectItem value="referral">Indicação</SelectItem>
+                <SelectItem value="other">Outro</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Score Filter */}
+            <Select
+              value={filters.scoreFilter}
+              onValueChange={(value) => setFilters({ ...filters, scoreFilter: value })}
+            >
+              <SelectTrigger className="w-[180px] bg-white border-border/60 shadow-sm rounded-lg hover:bg-muted/30 transition-colors">
+                <SelectValue placeholder="Score" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os scores</SelectItem>
+                <SelectItem value="high">Alto (70+)</SelectItem>
+                <SelectItem value="medium">Médio (40-69)</SelectItem>
+                <SelectItem value="low">Baixo (&lt;40)</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Clear Filters */}
+            {hasActiveFilters && (
+              <Button variant="ghost" onClick={clearFilters} className="text-muted-foreground hover:text-foreground">
+                Limpar filtros
+              </Button>
+            )}
           </div>
 
-          {/* Source Filter */}
-          <Select
-            value={filters.sourceFilter}
-            onValueChange={(value) => setFilters({ ...filters, sourceFilter: value })}
-          >
-            <SelectTrigger className="w-[180px]">
-              <Filter className="mr-2 h-4 w-4" />
-              <SelectValue placeholder="Fonte" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas as fontes</SelectItem>
-              <SelectItem value="chatwit">Chatwit</SelectItem>
-              <SelectItem value="website">Website</SelectItem>
-              <SelectItem value="referral">Indicação</SelectItem>
-              <SelectItem value="other">Outro</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* Score Filter */}
-          <Select
-            value={filters.scoreFilter}
-            onValueChange={(value) => setFilters({ ...filters, scoreFilter: value })}
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Score" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os scores</SelectItem>
-              <SelectItem value="high">Alto (70+)</SelectItem>
-              <SelectItem value="medium">Médio (40-69)</SelectItem>
-              <SelectItem value="low">Baixo (&lt;40)</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* Clear Filters */}
+          {/* Filter Summary */}
           {hasActiveFilters && (
-            <Button variant="outline" onClick={clearFilters}>
-              Limpar filtros
-            </Button>
+            <div className="text-sm font-medium text-muted-foreground bg-white px-3 py-1.5 rounded-md border border-border/40 shadow-sm">
+              Mostrando <span className="text-foreground font-semibold">{filteredLeads?.length || 0}</span> de {leads?.length || 0} leads
+            </div>
           )}
         </div>
-
-        {/* Filter Summary */}
-        {hasActiveFilters && (
-          <div className="mt-3 text-sm text-gray-600">
-            Mostrando {filteredLeads?.length || 0} de {leads?.length || 0} leads
-          </div>
-        )}
       </div>
 
       {/* Kanban Board */}
-      <div className="flex-1 overflow-hidden bg-gray-50">
+      <div className="flex-1 overflow-hidden bg-background">
         {isLoading ? (
           <div className="flex h-full items-center justify-center">
-            <div className="text-gray-500">Carregando leads...</div>
+            <div className="flex flex-col items-center justify-center gap-2">
+              <span className="material-icons-outlined animate-spin text-primary">sync</span>
+              <span className="font-medium text-muted-foreground">Carregando quadro...</span>
+            </div>
           </div>
         ) : (
           <KanbanBoard

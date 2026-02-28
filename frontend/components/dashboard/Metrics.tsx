@@ -22,29 +22,32 @@ function MetricCard({
   icon: any
   suffix?: string
 }) {
-  const isPositive = change >= 0
+  const safeValue = value || 0
+  const safeChange = change || 0
+  const isPositive = safeChange >= 0
   const TrendIcon = isPositive ? TrendingUp : TrendingDown
 
   return (
-    <div className="p-4 border rounded-lg bg-white">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-sm font-medium text-gray-600">{title}</span>
-        <Icon className="h-4 w-4 text-gray-400" />
+    <div className="p-6 border border-border/40 rounded-2xl bg-card shadow-sm hover:shadow-md transition-all duration-300">
+      <div className="flex items-center justify-between mb-4">
+        <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{title}</span>
+        <div className="p-2.5 bg-primary/10 rounded-xl">
+          <Icon className="h-5 w-5 text-primary" />
+        </div>
       </div>
       <div className="flex items-end justify-between">
-        <div>
-          <p className="text-2xl font-bold text-gray-900">
-            {value.toFixed(suffix === '%' ? 1 : 0)}
-            {suffix}
+        <div className="w-full">
+          <p className="text-4xl font-serif font-bold text-foreground">
+            {safeValue.toFixed(suffix === '%' ? 1 : 0)}
+            <span className="text-xl ml-1 text-muted-foreground/80 font-medium">{suffix}</span>
           </p>
           <div
-            className={`flex items-center gap-1 mt-1 text-xs ${
-              isPositive ? 'text-green-600' : 'text-red-600'
-            }`}
+            className={`flex items-center gap-1.5 mt-3 text-sm font-medium px-2.5 py-1 rounded-full inline-flex ${isPositive ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
+              }`}
           >
-            <TrendIcon className="h-3 w-3" />
+            <TrendIcon className="h-4 w-4" />
             <span>
-              {Math.abs(change).toFixed(1)}% vs período anterior
+              {Math.abs(safeChange).toFixed(1)}% vs anterior
             </span>
           </div>
         </div>
@@ -91,11 +94,11 @@ export function Metrics({ data, isLoading }: MetricsProps) {
   const { metrics } = data
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Métricas do Escritório</CardTitle>
-        <p className="text-sm text-gray-500 mt-1">
-          Período: {new Date(data.periodStart).toLocaleDateString('pt-BR')} -{' '}
+    <Card className="border-0 shadow-none bg-transparent">
+      <CardHeader className="pb-4 px-6 pt-6">
+        <CardTitle className="text-2xl font-serif text-primary">Visão Estratégica</CardTitle>
+        <p className="text-sm font-medium text-muted-foreground mt-1 tracking-wide">
+          Período analisado: {new Date(data.periodStart).toLocaleDateString('pt-BR')} a{' '}
           {new Date(data.periodEnd).toLocaleDateString('pt-BR')}
         </p>
       </CardHeader>
@@ -108,7 +111,7 @@ export function Metrics({ data, isLoading }: MetricsProps) {
             icon={TrendingUp}
             suffix="%"
           />
-          
+
           <MetricCard
             title="Tempo Médio de Resposta"
             value={metrics.avgResponseTimeHours}
@@ -116,7 +119,7 @@ export function Metrics({ data, isLoading }: MetricsProps) {
             icon={Clock}
             suffix="h"
           />
-          
+
           <MetricCard
             title="Satisfação do Cliente"
             value={metrics.satisfactionScore}
@@ -124,29 +127,33 @@ export function Metrics({ data, isLoading }: MetricsProps) {
             icon={Star}
             suffix="/100"
           />
-          
-          <div className="p-4 border rounded-lg bg-white">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-gray-600">Processos Ativos</span>
-              <Briefcase className="h-4 w-4 text-gray-400" />
+
+          <div className="p-6 border border-border/40 rounded-2xl bg-card shadow-sm hover:shadow-md transition-all duration-300">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Processos Ativos</span>
+              <div className="p-2.5 bg-primary/10 rounded-xl">
+                <Briefcase className="h-5 w-5 text-primary" />
+              </div>
             </div>
-            <p className="text-2xl font-bold text-gray-900">
+            <p className="text-4xl font-serif font-bold text-foreground">
               {metrics.totalActiveCases}
             </p>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-sm font-semibold mt-3 px-2.5 py-1 rounded-full inline-flex bg-accent/10 text-accent-foreground border border-accent/20">
               +{metrics.newCasesThisPeriod} novos neste período
             </p>
           </div>
-          
-          <div className="p-4 border rounded-lg bg-white">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-gray-600">Clientes Ativos</span>
-              <Users className="h-4 w-4 text-gray-400" />
+
+          <div className="p-6 border border-border/40 rounded-2xl bg-card shadow-sm hover:shadow-md transition-all duration-300">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Clientes Ativos</span>
+              <div className="p-2.5 bg-primary/10 rounded-xl">
+                <Users className="h-5 w-5 text-primary" />
+              </div>
             </div>
-            <p className="text-2xl font-bold text-gray-900">
+            <p className="text-4xl font-serif font-bold text-foreground">
               {metrics.totalActiveClients}
             </p>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-sm font-semibold mt-3 px-2.5 py-1 rounded-full inline-flex bg-accent/10 text-accent-foreground border border-accent/20">
               +{metrics.newClientsThisPeriod} novos neste período
             </p>
           </div>

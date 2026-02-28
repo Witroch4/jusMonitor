@@ -1,10 +1,10 @@
 """Metrics middleware to track HTTP requests."""
 
+import re
 import time
-from typing import Callable
 
-from fastapi import Request, Response
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.core.metrics import (
     http_error_rate,
@@ -12,99 +12,72 @@ from app.core.metrics import (
     http_request_duration_seconds,
 )
 
+# Pre-compiled patterns for path normalization
+_UUID_RE = re.compile(
+    r"/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+    re.IGNORECASE,
+)
+_NUMERIC_ID_RE = re.compile(r"/\d+")
 
-class MetricsMiddleware(BaseHTTPMiddleware):
+
+def _normalize_path(path: str) -> str:
+    """Normalize path by replacing UUIDs and numeric IDs with {id}."""
+    path = _UUID_RE.sub("/{id}", path)
+    path = _NUMERIC_ID_RE.sub("/{id}", path)
+    return path
+
+
+class MetricsMiddleware:
     """
-    Middleware to track HTTP request metrics.
-    
-    Tracks:
-    - Request duration
-    - Request count by method, path, and status
-    - Error rate by type
+    Pure ASGI middleware to track HTTP request metrics.
+
+    Tracks request duration, count by method/path/status, and error rate.
     """
 
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """Process request and record metrics."""
-        # Skip metrics endpoint itself
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        request = Request(scope, receive)
+
         if request.url.path == "/metrics":
-            return await call_next(request)
-        
-        # Normalize path (remove IDs for better aggregation)
-        path = self._normalize_path(request.url.path)
+            await self.app(scope, receive, send)
+            return
+
+        path = _normalize_path(request.url.path)
         method = request.method
-        
-        # Start timer
         start_time = time.time()
-        
+        status_code = 500
+
+        async def send_wrapper(message):
+            nonlocal status_code
+            if message["type"] == "http.response.start":
+                status_code = message["status"]
+            await send(message)
+
         try:
-            # Process request
-            response = await call_next(request)
-            
-            # Calculate duration
+            await self.app(scope, receive, send_wrapper)
             duration = time.time() - start_time
-            
-            # Record metrics
-            status_code = str(response.status_code)
             http_request_duration_seconds.labels(
-                method=method,
-                path=path,
-                status_code=status_code,
+                method=method, path=path, status_code=str(status_code)
             ).observe(duration)
-            
             http_request_count.labels(
-                method=method,
-                path=path,
-                status_code=status_code,
+                method=method, path=path, status_code=str(status_code)
             ).inc()
-            
-            return response
-        
         except Exception as e:
-            # Calculate duration
             duration = time.time() - start_time
-            
-            # Record error metrics
             error_type = type(e).__name__
             http_error_rate.labels(
-                method=method,
-                path=path,
-                error_type=error_type,
+                method=method, path=path, error_type=error_type
             ).inc()
-            
-            # Record duration with 500 status
             http_request_duration_seconds.labels(
-                method=method,
-                path=path,
-                status_code="500",
+                method=method, path=path, status_code="500"
             ).observe(duration)
-            
             http_request_count.labels(
-                method=method,
-                path=path,
-                status_code="500",
+                method=method, path=path, status_code="500"
             ).inc()
-            
             raise
-    
-    def _normalize_path(self, path: str) -> str:
-        """
-        Normalize path by removing UUIDs and IDs.
-        
-        Examples:
-            /api/v1/clients/123e4567-e89b-12d3-a456-426614174000 -> /api/v1/clients/{id}
-            /api/v1/cases/12345 -> /api/v1/cases/{id}
-        """
-        import re
-        
-        # Replace UUIDs
-        path = re.sub(
-            r"/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
-            "/{id}",
-            path,
-            flags=re.IGNORECASE,
-        )
-        
-        # Replace numeric IDs
-        path = re.sub(r"/\d+", "/{id}", path)
-        
-        return path

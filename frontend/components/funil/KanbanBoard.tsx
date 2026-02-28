@@ -49,10 +49,10 @@ function DroppableColumn({
   return (
     <div className="flex min-w-[320px] flex-1 flex-col">
       {/* Column Header */}
-      <div className={`mb-4 rounded-lg border-2 ${color} p-4`}>
-        <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-        <p className="text-sm text-gray-600">
-          {leads.length} {leads.length === 1 ? 'lead' : 'leads'}
+      <div className={`mb-4 rounded-xl border-l-[6px] shadow-sm ${color} bg-white p-4`}>
+        <h3 className="text-xl font-serif text-foreground">{title}</h3>
+        <p className="text-sm font-medium text-muted-foreground mt-1 tracking-wide">
+          {leads.length} {leads.length === 1 ? 'LEAD' : 'LEADS'}
         </p>
       </div>
 
@@ -60,8 +60,8 @@ function DroppableColumn({
       <div
         ref={setNodeRef}
         className={`
-          flex-1 space-y-3 rounded-lg p-4 min-h-[200px] transition-colors
-          ${isOver ? 'bg-blue-50 border-2 border-blue-300 border-dashed' : 'bg-gray-100'}
+          flex-1 space-y-4 rounded-xl p-4 min-h-[200px] transition-all duration-300
+          ${isOver ? 'bg-primary/5 border-2 border-primary/20 border-dashed' : 'bg-muted/10 border border-transparent'}
         `}
       >
         {leads.map((lead) => (
@@ -165,7 +165,7 @@ export function KanbanBoard({ leads, onLeadMove, onLeadClick }: KanbanBoardProps
       <DragOverlay>
         {activeLead ? (
           <div className="rotate-3 opacity-80">
-            <LeadCard lead={activeLead} onClick={() => {}} isDragging={true} />
+            <LeadCard lead={activeLead} onClick={() => { }} isDragging={true} />
           </div>
         ) : null}
       </DragOverlay>

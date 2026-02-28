@@ -16,7 +16,7 @@ from app.core.auth.password import verify_password
 from app.db.engine import get_session
 from app.db.models.user import User
 from app.db.repositories.user_repository import UserRepository
-from app.schemas.auth import LoginRequest, RefreshTokenRequest, TokenResponse, UserInfo
+from app.schemas.auth import LoginRequest, LoginUserInfo, RefreshTokenRequest, TokenResponse, UserInfo
 
 logger = logging.getLogger(__name__)
 
@@ -95,19 +95,19 @@ async def login(
     # Rate limiting by IP address
     client_ip = request.client.host if request.client else "unknown"
     check_rate_limit(client_ip)
-    
-    # Get user repository for the specified tenant
-    user_repo = UserRepository(session, login_data.tenant_id)
-    
-    # Fetch user by email
-    user = await user_repo.get_active_by_email(login_data.email)
-    
+
+    # Fetch user by email globally (email is unique across tenants)
+    from sqlalchemy import select
+    result = await session.execute(
+        select(User).where(User.email == login_data.email, User.is_active == True)
+    )
+    user = result.scalar_one_or_none()
+
     if not user:
         logger.warning(
             "Login failed: user not found",
             extra={
                 "email": login_data.email,
-                "tenant_id": str(login_data.tenant_id),
                 "ip": client_ip,
             },
         )
@@ -115,7 +115,7 @@ async def login(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
         )
-    
+
     # Verify password
     if not verify_password(login_data.password, user.password_hash):
         logger.warning(
@@ -123,7 +123,6 @@ async def login(
             extra={
                 "email": login_data.email,
                 "user_id": str(user.id),
-                "tenant_id": str(login_data.tenant_id),
                 "ip": client_ip,
             },
         )
@@ -145,7 +144,8 @@ async def login(
     )
     
     # Update last login timestamp
-    await user_repo.update_last_login(user.id)
+    from datetime import datetime as dt
+    user.last_login_at = dt.utcnow()
     await session.commit()
     
     logger.info(
@@ -163,6 +163,14 @@ async def login(
         refresh_token=refresh_token,
         token_type="bearer",
         expires_in=settings.jwt_access_token_expire_minutes * 60,
+        user=LoginUserInfo(
+            id=user.id,
+            email=user.email,
+            full_name=user.full_name,
+            role=user.role.value,
+            tenant_id=user.tenant_id,
+            is_super_admin=user.is_super_admin(),
+        ),
     )
 
 
@@ -308,4 +316,5 @@ async def get_me(
         full_name=user.full_name,
         role=user.role.value,
         tenant_id=user.tenant_id,
+        is_super_admin=user.is_super_admin(),
     )

@@ -185,7 +185,12 @@ async def verify_tenant_access(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Tenant identification missing from token",
         )
-    
+
+    # Super admins can access any tenant's resources
+    user_role = getattr(request.state, "user_role", "")
+    if user_role == UserRole.SUPER_ADMIN.value:
+        return
+
     if token_tenant_id != resource_tenant_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -195,8 +200,9 @@ async def verify_tenant_access(
 
 # Convenience type aliases for common dependencies
 CurrentUser = Annotated[User, Depends(get_current_user)]
-AdminUser = Annotated[User, Depends(require_role(UserRole.ADMIN))]
-LawyerUser = Annotated[User, Depends(require_role(UserRole.ADMIN, UserRole.LAWYER))]
+SuperAdminUser = Annotated[User, Depends(require_role(UserRole.SUPER_ADMIN))]
+AdminUser = Annotated[User, Depends(require_role(UserRole.ADMIN, UserRole.SUPER_ADMIN))]
+LawyerUser = Annotated[User, Depends(require_role(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.LAWYER))]
 
 
 async def get_current_tenant_id(
