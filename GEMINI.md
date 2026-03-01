@@ -1,1 +1,1 @@
-/home/wital/jusMonitor/CLAUDE.md
+AGENTS.md

@@ -57,12 +57,14 @@ class BaseAgent(ABC):
         context: Optional[dict[str, Any]] = None,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        use_case: str = "default",  # "default" | "document" | "daily"
     ) -> str:
         """
         Execute agent with dynamic provider routing.
         
         Args:
             user_message: User's message/query
+            use_case: Selects provider chain — "default", "document" (petições/docs), "daily" (briefing/DataJud)
             context: Optional context dictionary
             temperature: Override temperature
             max_tokens: Override max tokens
@@ -100,6 +102,7 @@ class BaseAgent(ABC):
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
+                use_case=use_case,
             )
 
             logger.info(

@@ -4,7 +4,7 @@ export interface User {
   id: string
   email: string
   fullName: string
-  role: 'admin' | 'advogado' | 'assistente' | 'visualizador'
+  role: 'super_admin' | 'admin' | 'advogado' | 'assistente' | 'visualizador'
   tenantId: string
   isActive: boolean
   phone?: string

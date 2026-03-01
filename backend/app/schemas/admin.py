@@ -185,11 +185,24 @@ class ProviderResponse(BaseModel):
         from_attributes = True
 
 
+class ProviderCreateRequest(BaseModel):
+    """Create a new AI provider for a tenant."""
+
+    tenant_id: UUID
+    provider: str  # openai | google | anthropic
+    model: str
+    api_key: str
+    priority: int = 0
+    max_tokens: Optional[int] = None
+    temperature: float = 0.7
+
+
 class ProviderUpdateRequest(BaseModel):
     """Update a provider."""
 
     priority: Optional[int] = None
     is_active: Optional[bool] = None
+    model: Optional[str] = None
 
 
 # ─── Worker Schedule Schemas ──────────────────────────────────────

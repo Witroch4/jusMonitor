@@ -1,30 +1,326 @@
-# Resumo do Plano Original (Fase 2) — Atualizado/Compactado
+# Plano Fase 2 — Backend de Petições e Certificados Digitais
 
-## Contexto Histórico
-O objetivo desta fase foi construir do zero o backend para protocolo de petições nos tribunais brasileiros via MNI 2.2.2 (SOAP/WSDL) com certificado digital A1 (ICP-Brasil) e mTLS, uma vez que o frontend estava 100% completo com mock data. A arquitetura foi orientada à segurança ("Cofre"), mantendo certificados ICP-Brasil seguros em repouso com criptografia Fernet (AES-128-CBC) e realizando operações mTLS e de assinatura com footprint zero no disco (somente descriptografia em RAM arquivos temporários `tempfile` efêmeros seguros).
-Super Admin User:
-witalo_rocha@hotmail.com
-W#@@%¨&!B!!!UN<L=
+## Contexto
 
+O frontend do módulo de petições está 100% completo com mock data. O backend não tem nenhum model, endpoint ou service para petições/certificados. Precisamos construir o backend para que o sistema consiga efetivamente protocolar petições nos tribunais brasileiros via MNI 2.2.2 (SOAP/WSDL) com certificado digital A1 (ICP-Brasil) e mTLS.
+certificado A1 real docs/Amanda Alves de Sousa_07071649316.pfx
+Ela faz petiçoes usando pje e eproc trfs 1 a 6 dentre outros
 
-## Resumo das Entregas Implementadas (Fases 2A, 2B e 2C)
+**Sua pesquisa está correta nos fundamentos:**
+- MNI 2.2.2 é o padrão vigente (SOAP/XML)
+- mTLS com certificado A1 ICP-Brasil para autenticação
+- `entregarManifestacaoProcessual` é a operação principal para peticionar
+- `consultarProcesso` para consultar processos
+- Base64 para documentos no envelope XML (~33% overhead)
+- zeep + requests para cliente SOAP Python
+- Fernet/AES para criptografia do PFX em repouso
+- Arquitetura "Cofre" com descriptografia em RAM only
 
-**Fase 2A — Certificados Digitais:**
-- Modelagem de banco de dados (`CertificadoDigital`) protegendo o PFX e senha em blob criptografado com Fernet.
-- `CertificateCryptoService` com parser PKCS12 extraindo dados do titular (OIDs de CPF/CNPJ ICP-Brasil) e gerando tempfiles seguros para o handshake mTLS.
-- Criação dos endpoints CRUD REST para upload (arquivos + senha) e validação dos certificados.
+**O que falta para protocolar de verdade:** Todo o backend (models, endpoints, crypto, SOAP client, worker).
 
-**Fase 2B — Petições CRUD e Documentos:**
-- Models `Peticao`, `PeticaoDocumento` (salvando PDF criptografado no banco devido ao tamanho e volume adequados) e `PeticaoEvento` para timeline.
-- Endpoints REST para gerenciamento completo do rascunho, upload multipart de documentos em blocos e validação em várias etapas garantindo adequação ao tribunal.
+---
 
-**Fase 2C — Integração MNI 2.2.2 (Protocolo Eletrônico):**
-- Serviço do cliente SOAP utilizando Python `zeep` adaptado para mTLS local e caching do WSDL dos tribunais.
-- Criação e montagem de XML SOAP contendo `dadosBasicos` e arrays `documento` em base64.
-- Conversão prévia: validador de cabeçalho PDF e rasterização/split, além do injetor de Assinatura PKCS#7/CMS efetuado programaticamente via `pyhanko`.
-- Tudo orquestrado por um `Taskiq Worker` gerenciando a chamada externa com exponential backoff e timeout estendido, mudando status da Petição (protocolada vs. rejeitada) de forma assíncrona.
+## Entrega em 3 Sub-fases
 
-*(Nota: O plano detalhado inicial arquivo a arquivo compreendendo essas ~320 linhas foi condensado aqui por todas as etapas terem sido executadas com sucesso. Todo o andamento real em detalhes e histórico de correções estão mantidos no Changelog abaixo).*
+### Fase 2A — Certificados Digitais (Backend + Frontend conectado)
+### Fase 2B — Petições CRUD + Upload de Documentos
+### Fase 2C — Integração MNI 2.2.2 (SOAP, assinatura, worker)
+
+---
+
+## Fase 2A — Certificados Digitais
+
+### Dependências novas (`pyproject.toml`)
+```toml
+zeep = "^4.2.1"        # Cliente SOAP/WSDL
+pyhanko = "^0.25.0"    # Assinatura PDF PKCS#7/CMS
+Pillow = "^11.0"       # Rasterização PDF
+pdf2image = "^1.17"    # PDF para imagem
+```
+(cryptography já existe no projeto — fornece Fernet + PKCS12)
+
+### Arquivos novos
+
+**1. Config** — `backend/app/config.py` (modificar)
+- Adicionar `ENCRYPT_KEY: str = ""` (Fernet key, 32 bytes base64)
+- Adicionar `MNI_WSDL_CACHE_PATH`, `MNI_REQUEST_TIMEOUT`, `MNI_MAX_FILE_SIZE_MB`
+
+**2. Model** — `backend/app/db/models/certificado_digital.py`
+```python
+class CertificadoDigital(TenantBaseModel):
+    __tablename__ = "certificados_digitais"
+    # tenant_id, nome, titular_nome, titular_cpf_cnpj, emissora
+    # serial_number, valido_de, valido_ate
+    # pfx_encrypted (LargeBinary — Fernet encrypted)
+    # pfx_password_encrypted (LargeBinary — senha também cifrada com Fernet)
+    # ultimo_teste_em, ultimo_teste_resultado, ultimo_teste_mensagem
+    # revogado (soft delete)
+```
+- Status (`valido`/`expirando`/`expirado`) é **computado** em tempo de resposta a partir de `valido_ate`
+- Registrar em `backend/app/db/models/__init__.py`
+
+**3. Crypto Service** — `backend/app/core/services/certificados/crypto.py`
+- `encrypt_pfx(pfx_bytes)` → bytes cifrados com Fernet
+- `decrypt_pfx(encrypted_blob)` → bytes raw (RAM only)
+- `extract_metadata(pfx_bytes, password)` → titular, emissora, serial, validade
+- `mtls_tempfiles(pfx_bytes, password)` → context manager que:
+  1. Decrypt PFX
+  2. Extrai key + cert + chain via `cryptography.hazmat.primitives.serialization.pkcs12`
+  3. Escreve em `tempfile.NamedTemporaryFile` com `chmod 600`
+  4. Yield caminhos
+  5. `finally:` overwrite com zeros + `os.unlink()` (zero-disk-footprint)
+
+**4. Repository** — `backend/app/db/repositories/certificado_digital.py`
+- Extends `BaseRepository[CertificadoDigital]` (padrão existente em `base.py`)
+- `get_valid_certificates()` — lista não-revogados
+- `get_by_serial(serial)` — busca por serial number
+
+**5. Schemas** — `backend/app/schemas/certificado.py`
+- `CertificadoUploadRequest` (nome, senha_pfx — arquivo vem como UploadFile)
+- `CertificadoResponse` (com status computado, criptografia="AES-128-CBC")
+- `CertificadoTesteResponse` (sucesso, mensagem)
+
+**6. Endpoints** — `backend/app/api/v1/endpoints/certificados.py`
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| GET | `/certificados` | Listar certificados do tenant |
+| POST | `/certificados` | Upload PFX (multipart: file + nome + senha) |
+| GET | `/certificados/{id}` | Detalhe |
+| POST | `/certificados/{id}/testar` | Teste mTLS handshake |
+| DELETE | `/certificados/{id}` | Soft-delete (revogar) |
+
+Upload: recebe PFX → valida com senha → extrai metadados → cifra com Fernet → salva BLOB no DB → **nunca armazena a senha** (usada uma vez e descartada... PORÉM precisamos dela para mTLS depois, então cifrar a senha também com Fernet e armazenar separadamente).
+
+**Correção importante da pesquisa:** A senha DO PFX precisa ser armazenada (cifrada) porque será necessária toda vez que for descriptografar o PFX para mTLS. O campo `pfx_password_encrypted` guarda a senha cifrada com a mesma Fernet key.
+
+**7. Registrar router** — `backend/app/api/v1/router.py` (modificar)
+
+**8. Migration** — `alembic revision --autogenerate -m "add_certificados_digitais"`
+
+**9. Frontend** — `frontend/hooks/api/useCertificados.ts` (modificar)
+- Trocar imports de `lib/mock/certificados-data` por chamadas `apiClient`
+
+---
+
+## Fase 2B — Petições CRUD + Documentos
+
+### Arquivos novos
+
+**1. Models** — `backend/app/db/models/peticao.py`
+
+```python
+class Peticao(TenantBaseModel):
+    __tablename__ = "peticoes"
+    # tenant_id, numero_protocolo (nullable), processo_numero (CNJ 20 dígitos)
+    # tribunal_id (string: "TRF5-JFCE"), tipo_peticao (enum)
+    # assunto, descricao, status (enum: rascunho→protocolada)
+    # certificado_id (FK certificados_digitais)
+    # analise_ia (JSONB), protocolado_em, protocolo_recibo, motivo_rejeicao
+    # criado_por (FK users)
+    # relationships: documentos, eventos
+
+class PeticaoDocumento(TenantBaseModel):
+    __tablename__ = "peticao_documentos"
+    # peticao_id (FK), nome_original, tamanho_bytes
+    # tipo_documento (enum: peticao_principal/procuracao/anexo/comprovante)
+    # ordem, conteudo (LargeBinary — PDF raw)
+    # conteudo_assinado (LargeBinary nullable — PDF assinado PKCS#7)
+    # hash_sha256, status, erro_validacao
+
+class PeticaoEvento(TenantBaseModel):
+    __tablename__ = "peticao_eventos"
+    # peticao_id (FK), status (snapshot), descricao, detalhes
+```
+
+**Decisão de armazenamento:** PDFs como LargeBinary no PostgreSQL. Para os tamanhos esperados (1-5MB por doc, 1-3 docs por petição) é aceitável. Migrar para S3/MinIO se escalar.
+
+**2. Repositories** — `backend/app/db/repositories/peticao.py`
+- `PeticaoRepository` — list_with_filters, get_with_documents, update_status
+- `PeticaoDocumentoRepository` — get_by_peticao, get_ordered
+- `PeticaoEventoRepository` — get_by_peticao (ordered by created_at)
+
+**3. Schemas** — `backend/app/schemas/peticao.py`
+- `PeticaoCreate` (validação CNJ: `^\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}$`)
+- `PeticaoResponse`, `PeticaoListItem`, `PeticaoListResponse`
+- `PeticaoDocumentoResponse`, `PeticaoEventoResponse`
+- Usar `alias_generator=to_camel` para compatibilidade com frontend camelCase
+
+**4. Service** — `backend/app/core/services/peticoes/peticao_service.py`
+- `create_peticao()` — cria com status "rascunho" + evento inicial
+- `add_documento()` — valida PDF, computa SHA-256, salva
+- `validate_for_filing()` — retorna lista de erros (sem docs, sem cert, cert expirado, etc.)
+- `trigger_filing()` — despacha task Taskiq (Fase 2C)
+
+**5. Endpoints** — `backend/app/api/v1/endpoints/peticoes.py`
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| GET | `/peticoes` | Lista com filtros (search, status, tribunal) + paginação |
+| POST | `/peticoes` | Criar petição (JSON) |
+| GET | `/peticoes/{id}` | Detalhe com documentos e eventos |
+| PUT | `/peticoes/{id}` | Atualizar (só em status "rascunho") |
+| DELETE | `/peticoes/{id}` | Deletar (só em status "rascunho") |
+| POST | `/peticoes/{id}/documentos` | Upload documento (multipart: file + tipo + ordem) |
+| DELETE | `/peticoes/{id}/documentos/{doc_id}` | Remover documento |
+| GET | `/peticoes/{id}/eventos` | Timeline de eventos |
+| POST | `/peticoes/{id}/protocolar` | Disparar protocolo (Fase 2C) |
+
+**6. Migration** — `alembic revision --autogenerate -m "add_peticoes_tables"`
+
+**7. Frontend** — `frontend/hooks/api/usePeticoes.ts` (modificar)
+- Trocar imports de `lib/mock/peticoes-data` por chamadas `apiClient`
+
+---
+
+## Fase 2C — Integração MNI 2.2.2 (o protocolo real)
+
+### Arquivos novos
+
+**1. Tribunal Router** — `backend/app/core/services/peticoes/tribunal_router.py`
+- Dicionário estático `TRIBUNAL_REGISTRY` mapeando os 13 tribunais (espelho de `frontend/lib/data/tribunais.ts`)
+- `get_tribunal(id)` → config (WSDL URL, sistema, limites, mTLS)
+- `get_wsdl_url(id)` → URL para conexão SOAP
+- Roteamento por NPU (segmentos J.TR) para discernir tribunal correto
+
+**2. MNI SOAP Client** — `backend/app/core/services/peticoes/mni_client.py`
+```python
+class MNIClient:
+    # zeep.Client com:
+    #   - Transport(session=requests_session_with_mtls)
+    #   - SqliteCache para WSDL caching (24-72h)
+    #   - Settings(strict=False, xml_huge_tree=True)
+
+    def consultar_processo(numero_processo, cpf_consultante) -> dict
+    def entregar_manifestacao_processual(
+        numero_processo,   # 20 dígitos (sem pontos)
+        id_manifestante,   # CPF numérico (sem pontos)
+        documentos[]       # lista de {tipo, conteudo_base64, hash}
+    ) -> {sucesso, protocolo, recibo_base64, mensagem}
+```
+
+Regras MNI 2.2.2 críticas (da sua pesquisa + docs):
+- `numeroProcesso`: 20 dígitos puros (`\d{20}`) — sem pontos/traços
+- `idManifestante`: CPF numérico puro — sem formatação
+- Petição inicial: `numeroProcesso = "00000000000000000000"` (20 zeros)
+- Documentos: `base64Binary` (mudou de hexBinary na v2.2.2)
+- `tipoDocumento`: código nacional TNU (Resolução CNJ 46)
+- `orgaoJulgador`: obrigatório na v2.2.2 (nome, código, instância)
+
+**3. PDF Processor** — `backend/app/core/services/peticoes/pdf_processor.py`
+- `validate_pdf(bytes)` — valida estrutura
+- `rasterize_to_grayscale(bytes, dpi=200)` — converte para 200dpi escala de cinza
+- `split_if_needed(bytes, max_mb=3.75)` — particiona se base64 exceder limite
+- `to_base64(bytes)` → string base64
+
+**4. PDF Signer** — `backend/app/core/services/peticoes/pdf_signer.py`
+- Assina PDF com PKCS#7/CMS usando pyhanko
+- Input: PDF bytes + PFX bytes + senha
+- Output: PDF assinado (bytes)
+
+**5. Taskiq Worker** — `backend/app/workers/tasks/peticao_filing.py`
+Pipeline completo de protocolo:
+```
+1. Carregar petição + docs + certificado do DB
+2. Status → 'validando' + evento
+3. Validar documentos (PDF, tamanho)
+4. Status → 'assinando' + evento
+5. Descriptografar certificado (RAM only)
+6. Assinar cada PDF com PKCS#7
+7. Rasterizar/split se necessário
+8. Status → 'protocolando' + evento
+9. Montar envelope SOAP com docs base64
+10. Chamar entregarManifestacaoProcessual via MNI (asyncio.to_thread)
+11a. Sucesso → status 'protocolada' + salvar recibo + evento
+11b. Falha → status 'rejeitada' + salvar motivo + evento
+12. Notificar via WebSocket/Redis pub-sub
+```
+
+Retry: exponential backoff (1s, 2s, 4s, 8s) para erros 500/502/503/504. **Não** retry para 4xx.
+
+**6. WebSocket bridge** — Redis pub/sub para worker→frontend (modificar `backend/app/api/v1/websocket.py`)
+
+---
+
+## Inventário de Arquivos
+
+### Novos (19 arquivos)
+| Fase | Arquivo |
+|------|---------|
+| 2A | `backend/app/db/models/certificado_digital.py` |
+| 2A | `backend/app/db/repositories/certificado_digital.py` |
+| 2A | `backend/app/schemas/certificado.py` |
+| 2A | `backend/app/core/services/certificados/__init__.py` |
+| 2A | `backend/app/core/services/certificados/crypto.py` |
+| 2A | `backend/app/api/v1/endpoints/certificados.py` |
+| 2B | `backend/app/db/models/peticao.py` |
+| 2B | `backend/app/db/repositories/peticao.py` |
+| 2B | `backend/app/schemas/peticao.py` |
+| 2B | `backend/app/core/services/peticoes/__init__.py` |
+| 2B | `backend/app/core/services/peticoes/peticao_service.py` |
+| 2B | `backend/app/api/v1/endpoints/peticoes.py` |
+| 2C | `backend/app/core/services/peticoes/tribunal_router.py` |
+| 2C | `backend/app/core/services/peticoes/mni_client.py` |
+| 2C | `backend/app/core/services/peticoes/pdf_processor.py` |
+| 2C | `backend/app/core/services/peticoes/pdf_signer.py` |
+| 2C | `backend/app/workers/tasks/peticao_filing.py` |
+
+### Modificados
+| Arquivo | Mudança |
+|---------|---------|
+| `backend/pyproject.toml` | Adicionar zeep, pyhanko, Pillow, pdf2image |
+| `backend/app/config.py` | ENCRYPT_KEY, MNI_* settings |
+| `backend/app/db/models/__init__.py` | Import novos models |
+| `backend/app/api/v1/router.py` | Registrar routers certificados + peticoes |
+| `frontend/hooks/api/useCertificados.ts` | Mock → apiClient |
+| `frontend/hooks/api/usePeticoes.ts` | Mock → apiClient |
+
+---
+
+## Verificação / Testes
+
+### Fase 2A
+1. Criar certificado de teste self-signed: `openssl req -x509 -newkey rsa:2048 -keyout test.key -out test.crt -days 365 -nodes && openssl pkcs12 -export -out test.pfx -inkey test.key -in test.crt`
+2. `POST /certificados` com o PFX de teste → verificar que metadados são extraídos corretamente
+3. `GET /certificados` → verificar que status é computado (valido/expirando/expirado)
+4. `POST /certificados/{id}/testar` → verificar handshake (vai falhar sem tribunal real, mas deve mostrar tentativa)
+5. Frontend: `http://localhost:3000/configuracoes?tab=assinatura` → upload, lista, teste, deletar funcionando com API real
+
+### Fase 2B
+1. `POST /peticoes` → criar petição com dados válidos
+2. `POST /peticoes/{id}/documentos` → upload PDF
+3. `GET /peticoes/{id}` → verificar documentos carregados
+4. `GET /peticoes/{id}/eventos` → verificar timeline
+5. Frontend: `/peticoes` → criar petição, upload docs, ver lista
+
+### Fase 2C
+1. Testar com tribunal de homologação (se disponível) ou mock SOAP server
+2. Verificar pipeline completo: assinar → base64 → SOAP → resposta
+3. Verificar retry com backoff em caso de erro de rede
+4. Verificar limpeza de tempfiles após mTLS
+
+---
+
+## Ordem de Execução
+
+**Implementar Fase 2A agora** (certificados digitais). Fases 2B e 2C ficam para depois.
+
+O usuário tem um certificado A1 real (.pfx) para testes — podemos testar mTLS contra tribunais de verdade.
+
+### Sequência de implementação Fase 2A:
+1. Adicionar dependências ao `pyproject.toml` (zeep, pyhanko, Pillow, pdf2image)
+2. Adicionar ENCRYPT_KEY ao `config.py`
+3. Criar model `CertificadoDigital` + migration
+4. Criar crypto service (Fernet + PFX parsing + tempfiles mTLS)
+5. Criar repository
+6. Criar schemas Pydantic
+7. Criar endpoints REST
+8. Registrar router + model
+9. Rodar migration
+10. Trocar mock do frontend por API real
+11. Testar end-to-end com certificado A1 real
+
+---
 
 ## Changelog
 

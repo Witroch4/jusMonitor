@@ -99,17 +99,22 @@ class Settings(BaseSettings):
 
     # AI Providers
     openai_api_key: str = ""
-    openai_model: str = "gpt-4-turbo-preview"
+    openai_model: str = "gpt-4.1"                          # padrão geral / análise de petições
+    openai_document_model: str = "gpt-4.1"                 # análise de documentos/petições
+    openai_daily_model: str = "gpt-4.1-mini"               # rotina diária (DataJud poller / briefing)
     openai_embedding_model: str = "text-embedding-3-small"
     openai_max_tokens: int = 4096
     openai_temperature: float = 0.7
 
     anthropic_api_key: str = ""
-    anthropic_model: str = "claude-3-opus-20240229"
+    anthropic_model: str = "claude-sonnet-4-6"
+    anthropic_haiku_model: str = "claude-haiku-4-5-20251001"  # modelo rápido/econômico
     anthropic_max_tokens: int = 4096
 
     google_api_key: str = ""
-    google_model: str = "gemini-pro"
+    google_model: str = "gemini-flash-latest"              # alias → gemini-2.5-flash mais recente
+    google_document_model: str = "gemini-3-flash-preview"  # análise de documentos/petições
+    google_daily_model: str = "gemini-flash-latest"        # rotina diária (DataJud poller / briefing)
 
     # LiteLLM
     litellm_fallback_enabled: bool = True
@@ -133,6 +138,34 @@ class Settings(BaseSettings):
     super_admin_email: str = ""
     super_admin_password: str = ""
     scheduler_enabled: bool = True
+
+    # SMTP Configuration
+    mailer_sender_email: str = "suporte@witdev.com.br"
+    smtp_domain: str = "zoho.com"
+    smtp_address: str = "smtp.zoho.com"
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_authentication: str = "login"
+    smtp_enable_starttls_auto: bool = True
+    smtp_openssl_verify_mode: str = "peer"
+    
+    # Frontend URL for emails
+    frontend_url: str = "http://localhost:3000"
+
+    # SMTP Configuration
+    mailer_sender_email: str = "suporte@witdev.com.br"
+    smtp_domain: str = "zoho.com"
+    smtp_address: str = "smtp.zoho.com"
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_authentication: str = "login"
+    smtp_enable_starttls_auto: bool = True
+    smtp_openssl_verify_mode: str = "peer"
+    
+    # Frontend URL for emails
+    frontend_url: str = "http://localhost:3000"
 
     @property
     def is_development(self) -> bool:

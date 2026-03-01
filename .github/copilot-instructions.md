@@ -1,0 +1,1 @@
+/home/wital/jusMonitor/AGENTS.md

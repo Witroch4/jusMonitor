@@ -32,6 +32,7 @@ from app.schemas.admin import (
     DLQEventResponse,
     AIUsageResponse,
     PlatformOverviewResponse,
+    ProviderCreateRequest,
     ProviderResponse,
     ProviderUpdateRequest,
     ResetPasswordRequest,
@@ -295,6 +296,7 @@ async def create_user(
         role=role,
         tenant_id=data.tenant_id,
         is_active=data.is_active,
+        email_verified=True,
     )
     session.add(new_user)
     await session.flush()
@@ -567,7 +569,7 @@ async def update_provider(
     user: SuperAdminUser,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    """Update an AI provider (priority, toggle)."""
+    """Update an AI provider (priority, toggle, model)."""
     provider = await session.get(AIProvider, provider_id)
     if not provider:
         raise HTTPException(status_code=404, detail="Provider not found")
@@ -576,6 +578,8 @@ async def update_provider(
         provider.priority = data.priority
     if data.is_active is not None:
         provider.is_active = data.is_active
+    if data.model is not None:
+        provider.model = data.model
 
     await session.flush()
     await session.refresh(provider)
@@ -593,6 +597,63 @@ async def update_provider(
         usage_count=provider.usage_count,
         last_used_at=provider.last_used_at,
     )
+
+
+@router.post("/agents/providers", response_model=ProviderResponse, status_code=201)
+async def create_provider(
+    data: ProviderCreateRequest,
+    user: SuperAdminUser,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """Create a new AI provider for a tenant."""
+    from app.db.models.tenant import Tenant
+
+    tenant = await session.get(Tenant, data.tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    provider = AIProvider(
+        tenant_id=data.tenant_id,
+        provider=data.provider,
+        model=data.model,
+        api_key_encrypted=data.api_key,  # TODO: encrypt in production
+        priority=data.priority,
+        max_tokens=data.max_tokens,
+        temperature=data.temperature,
+        is_active=True,
+        usage_count=0,
+    )
+    session.add(provider)
+    await session.flush()
+    await session.refresh(provider)
+    await session.commit()
+
+    return ProviderResponse(
+        id=provider.id,
+        tenant_id=provider.tenant_id,
+        tenant_name=tenant.name,
+        provider=provider.provider,
+        model=provider.model,
+        priority=provider.priority,
+        is_active=provider.is_active,
+        usage_count=provider.usage_count,
+        last_used_at=provider.last_used_at,
+    )
+
+
+@router.delete("/agents/providers/{provider_id}", status_code=204)
+async def delete_provider(
+    provider_id: UUID,
+    user: SuperAdminUser,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """Delete an AI provider."""
+    provider = await session.get(AIProvider, provider_id)
+    if not provider:
+        raise HTTPException(status_code=404, detail="Provider not found")
+
+    await session.delete(provider)
+    await session.commit()
 
 
 # ═══════════════════════════════════════════════════════════════════

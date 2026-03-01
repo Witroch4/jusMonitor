@@ -27,7 +27,7 @@ class PeticaoCreate(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
 
-    processo_numero: str = Field(..., min_length=1, max_length=50)
+    processo_numero: str = Field("", max_length=50)
     tribunal_id: str = Field(..., min_length=1, max_length=20)
     tipo_peticao: TipoPeticao
     assunto: str = Field(..., min_length=1, max_length=500)

@@ -16,7 +16,17 @@ from app.core.auth.password import verify_password
 from app.db.engine import get_session
 from app.db.models.user import User
 from app.db.repositories.user_repository import UserRepository
-from app.schemas.auth import LoginRequest, LoginUserInfo, RefreshTokenRequest, TokenResponse, UserInfo
+from app.db.repositories.tenant import TenantRepository
+from app.schemas.auth import (
+    LoginRequest,
+    LoginUserInfo,
+    RefreshTokenRequest,
+    RegisterRequest,
+    TokenResponse,
+    UserInfo,
+    VerifyEmailRequest
+)
+from app.core.services.email_service import EmailService
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +71,145 @@ def check_rate_limit(identifier: str) -> None:
     if identifier not in _login_attempts:
         _login_attempts[identifier] = []
     _login_attempts[identifier].append(now)
+
+
+from unidecode import unidecode
+import re
+import uuid
+from app.core.auth.password import hash_password as get_password_hash
+from app.db.models.user import UserRole
+
+def generate_slug(name: str) -> str:
+    """Simple slug generator from firm name."""
+    s = unidecode(name).lower()
+    s = re.sub(r'[^a-z0-9]+', '-', s)
+    s = s.strip('-')
+    # Add random string to ensure uniqueness
+    suffix = str(uuid.uuid4())[:6]
+    return f"{s}-{suffix}"
+
+
+@router.post(
+    "/register",
+    status_code=status.HTTP_201_CREATED,
+    summary="Register new user and law firm",
+    description="Registers a new tenant (law firm) and its owner, sending a confirmation email.",
+)
+async def register(
+    request: Request,
+    register_data: RegisterRequest,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> dict:
+    """Register a new user and tenant."""
+    # Rate limit check by IP
+    client_ip = request.client.host if request.client else "unknown"
+    check_rate_limit(client_ip)
+
+    # 1. Check if email exists
+    from sqlalchemy import select
+    from app.db.models.user import User
+    
+    result = await session.execute(
+        select(User).where(User.email == register_data.email)
+    )
+    if result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User with this email already exists"
+        )
+        
+    # 2. Create Tenant
+    tenant_repo = TenantRepository(session)
+    slug = generate_slug(register_data.firm_name)
+    
+    tenant = await tenant_repo.create(
+        name=register_data.firm_name,
+        slug=slug,
+        plan="basic"
+    )
+    
+    # 3. Create User (Owner)
+    verification_token = str(uuid.uuid4())
+    
+    user = User(
+        tenant_id=tenant.id,
+        email=register_data.email,
+        password_hash=get_password_hash(register_data.password),
+        full_name=register_data.full_name,
+        role=UserRole.ADMIN,
+        is_active=True,
+        email_verified=False,
+        verification_token=verification_token,
+        oab_number=register_data.oab_number,
+        oab_state=register_data.oab_state,
+    )
+    
+    session.add(user)
+    await session.commit()
+    
+    # 4. Send Confirmation Email
+    await EmailService.send_verification_email(
+        name=user.full_name,
+        email=user.email,
+        token=verification_token
+    )
+    
+    logger.info(
+        "New user registration completed",
+        extra={
+            "tenant_id": str(tenant.id),
+            "user_id": str(user.id),
+            "email": user.email,
+        }
+    )
+    
+    return {
+        "message": "Registration successful. Please check your email to confirm your account."
+    }
+
+
+@router.post(
+    "/verify-email",
+    status_code=status.HTTP_200_OK,
+    summary="Verify user email",
+    description="Verify the email using the token sent upon registration.",
+)
+async def verify_email(
+    verify_data: VerifyEmailRequest,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> dict:
+    from sqlalchemy import select
+    from app.db.models.user import User
+    
+    result = await session.execute(
+        select(User).where(User.verification_token == verify_data.token)
+    )
+    user = result.scalar_one_or_none()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification token"
+        )
+        
+    if user.email_verified:
+        return {"message": "Email already verified"}
+        
+    user.email_verified = True
+    user.verification_token = None
+    
+    await session.commit()
+    
+    logger.info(
+        "Email verified",
+        extra={
+            "user_id": str(user.id),
+            "email": user.email,
+        }
+    )
+    
+    return {"message": "Email verified successfully"}
+
 
 
 @router.post(
@@ -114,6 +263,21 @@ async def login(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
+        )
+
+    # Verifica se e-mail foi validado
+    if getattr(user, 'email_verified', True) is False:
+        logger.warning(
+            "Login failed: email not verified",
+            extra={
+                "email": login_data.email,
+                "user_id": str(user.id),
+                "ip": client_ip,
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Por favor, verifique seu e-mail antes de fazer login. Cheque sua caixa de entrada.",
         )
 
     # Verify password

@@ -112,6 +112,7 @@ Requisitos:
             user_message=prompt,
             temperature=0.6,
             max_tokens=150,
+            use_case="document",
         )
         
         # Truncate if needed
@@ -196,6 +197,7 @@ Use linguagem acessível e tom empático.
         response = await self.execute(
             user_message=prompt,
             temperature=0.7,
+            use_case="document",
         )
         
         return response.strip()
@@ -255,6 +257,7 @@ Requisitos:
         response = await self.execute(
             user_message=prompt,
             temperature=0.5,
+            use_case="document",
         )
         
         return response.strip()
@@ -292,6 +295,7 @@ Instruções: {instruction}
         response = await self.execute(
             user_message=prompt,
             temperature=0.6,
+            use_case="document",
         )
         
         return response.strip()
@@ -348,6 +352,7 @@ O documento deve:
             context=context,
             temperature=0.7,
             max_tokens=2000,
+            use_case="document",
         )
         
         return response.strip()
@@ -388,6 +393,7 @@ O resumo deve:
             user_message=prompt,
             temperature=0.6,
             max_tokens=400,
+            use_case="document",
         )
         
         return response.strip()

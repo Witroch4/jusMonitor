@@ -21,14 +21,16 @@ export function PeticaoFormRevisao({ formData, files, analise }: Props) {
   const hasPrincipal = files.some((f) => f.tipoDocumento === 'peticao_principal' && f.status === 'uploaded')
   const validFiles = files.filter((f) => f.status === 'uploaded')
 
+  const isPeticaoInicial = formData.tipoPeticao === 'peticao_inicial'
+  const processoOk = isPeticaoInicial || formData.processoNumero.length > 10
+
   const checks: CheckItem[] = [
     { label: 'Tribunal selecionado', ok: !!formData.tribunalId },
-    { label: 'Número do processo preenchido', ok: formData.processoNumero.length > 10 },
+    { label: isPeticaoInicial ? 'Número gerado pelo tribunal' : 'Número do processo preenchido', ok: processoOk },
     { label: 'Tipo de petição selecionado', ok: !!formData.tipoPeticao },
     { label: 'Assunto preenchido', ok: formData.assunto.length > 3 },
     { label: 'Documento principal anexado', ok: hasPrincipal },
     { label: 'Certificado digital selecionado', ok: !!formData.certificadoId },
-    { label: 'Análise IA concluída', ok: !!analise },
   ]
 
   const allOk = checks.every((c) => c.ok)
@@ -99,16 +101,17 @@ export function PeticaoFormRevisao({ formData, files, analise }: Props) {
 export function useRevisaoValidation(
   formData: NovaPeticaoFormData,
   files: UploadedFile[],
-  analise: AnaliseIA | null
+  analise?: AnaliseIA | null
 ): boolean {
   const hasPrincipal = files.some((f) => f.tipoDocumento === 'peticao_principal' && f.status === 'uploaded')
+  const isPeticaoInicial = formData.tipoPeticao === 'peticao_inicial'
+  const processoOk = isPeticaoInicial || formData.processoNumero.length > 10
   return (
     !!formData.tribunalId &&
-    formData.processoNumero.length > 10 &&
+    processoOk &&
     !!formData.tipoPeticao &&
     formData.assunto.length > 3 &&
     hasPrincipal &&
-    !!formData.certificadoId &&
-    !!analise
+    !!formData.certificadoId
   )
 }

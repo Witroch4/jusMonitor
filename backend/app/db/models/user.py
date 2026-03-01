@@ -94,12 +94,27 @@ class User(TenantBaseModel):
         comment="User role for RBAC",
     )
     
+    
     # Status
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
         default=True,
         comment="Whether user account is active",
+    )
+    
+    email_verified: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        comment="Whether user has verified their email",
+    )
+    
+    verification_token: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+        index=True,
+        comment="Token for email verification",
     )
     
     last_login_at: Mapped[Optional[datetime]] = mapped_column(

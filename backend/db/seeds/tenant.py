@@ -112,6 +112,7 @@ async def seed_users(session: AsyncSession, tenant_id: UUID) -> list[User]:
             tenant_id=tenant_id,
             password_hash=pwd_context.hash(password),
             is_active=True,
+            email_verified=True,
             **user_data
         )
         session.add(user)

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import * as auth from '@/lib/auth'
-import type { AuthResponse } from '@/lib/auth'
+import type { AuthResponse, RegisterCredentials } from '@/lib/auth'
 
 export function useAuth() {
   const router = useRouter()
@@ -14,7 +14,7 @@ export function useAuth() {
   useEffect(() => {
     const storedUser = auth.getUser()
     const token = auth.getToken()
-    
+
     if (storedUser && token) {
       setUser(storedUser)
       setIsAuthenticated(true)
@@ -27,10 +27,10 @@ export function useAuth() {
       const response = await auth.login({ email, password })
       setUser(response.user)
       setIsAuthenticated(true)
-      
+
       // Set cookie for middleware
       document.cookie = `auth_token=${response.access_token}; path=/; max-age=86400`
-      
+
       return response
     } finally {
       setIsLoading(false)
@@ -41,11 +41,29 @@ export function useAuth() {
     auth.logout()
     setUser(null)
     setIsAuthenticated(false)
-    
+
     // Remove cookie
     document.cookie = 'auth_token=; path=/; max-age=0'
-    
+
     router.push('/login')
+  }
+
+  const register = async (credentials: RegisterCredentials) => {
+    setIsLoading(true)
+    try {
+      return await auth.register(credentials)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const verifyEmail = async (token: string) => {
+    setIsLoading(true)
+    try {
+      return await auth.verifyEmail(token)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return {
@@ -54,5 +72,7 @@ export function useAuth() {
     isAuthenticated,
     login,
     logout,
+    register,
+    verifyEmail,
   }
 }

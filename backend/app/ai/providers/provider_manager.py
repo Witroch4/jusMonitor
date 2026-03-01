@@ -66,6 +66,7 @@ class ProviderManager:
         messages: list[dict[str, str]],
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        use_case: str = "default",  # "default" | "document" | "daily"
         **kwargs: Any,
     ) -> str:
         """
@@ -75,6 +76,8 @@ class ProviderManager:
             messages: List of message dicts with 'role' and 'content'
             temperature: Override temperature
             max_tokens: Override max tokens
+            use_case: Chain de providers — "default" (geral), "document" (petições/docs),
+                      "daily" (DataJud poller / briefing matinal)
             **kwargs: Additional parameters for LiteLLM
         
         Returns:
@@ -86,25 +89,29 @@ class ProviderManager:
         # Get available providers from database
         providers = await self.get_available_providers()
         
+        # Se não há providers no BD, litellm_config usará as chains de env vars
+        # conforme o use_case ("default", "document" ou "daily")
         if not providers:
-            raise ValueError(
-                f"No active AI providers configured for tenant {self.tenant_id}"
+            logger.warning(
+                "No DB providers configured for tenant, using env-based chain",
+                extra={"tenant_id": str(self.tenant_id), "use_case": use_case},
             )
         
         # Call with fallback
         try:
             response = await litellm_config.call_with_fallback(
                 messages=messages,
-                providers=providers,
+                providers=providers if providers else None,
                 temperature=temperature,
                 max_tokens=max_tokens,
+                use_case=use_case,
                 **kwargs,
             )
             
-            # Record usage for the first provider (successful one)
-            # Note: In production, you'd want to track which provider actually succeeded
-            await self.repository.record_usage(providers[0].id)
-            await self.session.commit()
+            # Record usage for the first DB provider (successful one)
+            if providers:
+                await self.repository.record_usage(providers[0].id)
+                await self.session.commit()
             
             return response
         
@@ -113,6 +120,7 @@ class ProviderManager:
                 "All AI providers failed",
                 extra={
                     "tenant_id": str(self.tenant_id),
+                    "use_case": use_case,
                     "error": str(e),
                 },
             )

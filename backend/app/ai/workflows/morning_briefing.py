@@ -244,6 +244,7 @@ Responda apenas com a categoria (urgente, atencao, boas_noticias ou ruido).
             response = await self.investigador.execute(
                 user_message=prompt,
                 temperature=0.2,
+                use_case="daily",
             )
             
             response = response.strip().lower()
@@ -328,6 +329,7 @@ O resumo deve:
                 user_message=prompt,
                 temperature=0.6,
                 max_tokens=300,
+                use_case="daily",
             )
             
             return summary.strip()

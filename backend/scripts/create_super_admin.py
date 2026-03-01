@@ -103,6 +103,7 @@ async def create_super_admin(session, tenant: Tenant) -> User:
         role=UserRole.SUPER_ADMIN,
         tenant_id=tenant.id,
         is_active=True,
+        email_verified=True,
     )
     session.add(user)
     await session.flush()

@@ -119,21 +119,59 @@ class LiteLLMConfig:
         )
         self.rate_limiter = RateLimiter()
         
-        # Configure default fallback providers
+        # Configure default fallback providers (uso geral)
         self.default_providers = [
             {
                 "provider": "openai",
-                "model": settings.openai_model,
+                "model": settings.openai_model,         # gpt-4.1
                 "api_key": settings.openai_api_key,
             },
             {
                 "provider": "google",
-                "model": settings.google_model,
+                "model": settings.google_model,         # gemini-flash-latest
                 "api_key": settings.google_api_key,
             },
             {
                 "provider": "anthropic",
-                "model": settings.anthropic_model,
+                "model": settings.anthropic_model,      # claude-sonnet-4-6
+                "api_key": settings.anthropic_api_key,
+            },
+        ]
+
+        # Providers para análise de documentos/petições (modelos mais capazes)
+        self.document_providers = [
+            {
+                "provider": "google",
+                "model": settings.google_document_model,    # gemini-3-flash-preview
+                "api_key": settings.google_api_key,
+            },
+            {
+                "provider": "openai",
+                "model": settings.openai_document_model,    # gpt-4.1
+                "api_key": settings.openai_api_key,
+            },
+            {
+                "provider": "anthropic",
+                "model": settings.anthropic_model,          # claude-sonnet-4-6
+                "api_key": settings.anthropic_api_key,
+            },
+        ]
+
+        # Providers para rotinas diárias (DataJud poller / briefing matinal — modelos rápidos)
+        self.daily_providers = [
+            {
+                "provider": "google",
+                "model": settings.google_daily_model,       # gemini-flash-latest
+                "api_key": settings.google_api_key,
+            },
+            {
+                "provider": "openai",
+                "model": settings.openai_daily_model,       # gpt-4.1-mini
+                "api_key": settings.openai_api_key,
+            },
+            {
+                "provider": "anthropic",
+                "model": settings.anthropic_haiku_model,    # claude-haiku-4-5-20251001
                 "api_key": settings.anthropic_api_key,
             },
         ]
@@ -161,6 +199,7 @@ class LiteLLMConfig:
         providers: Optional[list[AIProvider]] = None,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        use_case: str = "default",  # "default" | "document" | "daily"
         **kwargs: Any,
     ) -> str:
         """
@@ -171,6 +210,8 @@ class LiteLLMConfig:
             providers: List of AIProvider instances (from database)
             temperature: Override temperature
             max_tokens: Override max tokens
+            use_case: Selects provider chain — "default" (geral), "document" (petições/documentos),
+                      "daily" (rotinas DataJud / briefing matinal)
             **kwargs: Additional parameters for LiteLLM
         
         Returns:
@@ -179,7 +220,7 @@ class LiteLLMConfig:
         Raises:
             Exception: If all providers fail
         """
-        # Use database providers if provided, otherwise use defaults
+        # Use database providers if provided, otherwise pick chain by use_case
         provider_configs = []
         
         if providers:
@@ -199,7 +240,11 @@ class LiteLLMConfig:
             # Sort by priority (highest first)
             provider_configs.sort(key=lambda x: x.get("priority", 0), reverse=True)
         else:
-            provider_configs = self.default_providers
+            chain_map = {
+                "document": self.document_providers,
+                "daily": self.daily_providers,
+            }
+            provider_configs = chain_map.get(use_case, self.default_providers)
         
         last_error: Optional[Exception] = None
         

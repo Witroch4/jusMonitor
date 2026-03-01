@@ -31,12 +31,17 @@ const navigation = [
   { name: 'Configurações', href: '/configuracoes', icon: 'settings' },
 ]
 
+const superAdminNavigation = [
+  { name: 'Provedores IA', href: '/admin/ia', icon: 'psychology' },
+]
+
 export function Sidebar() {
   const pathname = usePathname()
-  const { logout } = useAuth()
+  const { logout, user } = useAuth()
   const [isDark, setIsDark] = useState(false)
   const { state } = useSidebar()
   const isCollapsed = state === 'collapsed'
+  const isSuperAdmin = user?.role === 'super_admin'
 
   useEffect(() => {
     setIsDark(document.documentElement.classList.contains('dark'))
@@ -98,6 +103,38 @@ export function Sidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {isSuperAdmin && (
+          <SidebarGroup className="mt-2">
+            {!isCollapsed && (
+              <p className="px-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1">
+                Super Admin
+              </p>
+            )}
+            <SidebarGroupContent>
+              <SidebarMenu className="gap-1">
+                {superAdminNavigation.map((item) => {
+                  const isActive = pathname === item.href
+                  return (
+                    <SidebarMenuItem key={item.name}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={isActive}
+                        tooltip={item.name}
+                        className="h-11 rounded-lg transition-all text-amber-600 data-[active=true]:bg-amber-50 data-[active=true]:text-amber-700 dark:text-amber-400 dark:data-[active=true]:bg-amber-950/40"
+                      >
+                        <Link href={item.href}>
+                          <span className="material-symbols-outlined shrink-0 text-xl">{item.icon}</span>
+                          <span>{item.name}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
 
       <SidebarFooter className={cn("pb-6 mt-auto border-t border-sidebar-border transition-all duration-200", isCollapsed ? "px-0 py-4 items-center justify-center" : "p-4")}>

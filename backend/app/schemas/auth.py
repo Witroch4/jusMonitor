@@ -21,6 +21,50 @@ class LoginRequest(BaseModel):
     )
 
 
+class RegisterRequest(BaseModel):
+    """Registration request payload."""
+    
+    email: EmailStr = Field(
+        ...,
+        description="Email address of the owner",
+        examples=["owner@example.com"],
+    )
+    password: str = Field(
+        ...,
+        min_length=8,
+        description="Password for the new account",
+    )
+    full_name: str = Field(
+        ...,
+        min_length=2,
+        description="Full name of the user",
+        examples=["João da Silva"],
+    )
+    firm_name: str = Field(
+        ...,
+        min_length=2,
+        description="Name of the law firm / tenant",
+        examples=["Silva & Associados Advogados"],
+    )
+    oab_number: Optional[str] = Field(
+        default=None,
+        description="OAB registration number (digits only)",
+    )
+    oab_state: Optional[str] = Field(
+        default=None,
+        max_length=2,
+        description="OAB state (2-letter code, e.g. SP, RJ)",
+    )
+
+
+class VerifyEmailRequest(BaseModel):
+    """Email verification request payload."""
+    token: str = Field(
+        ...,
+        description="Verification UUID token sent via email",
+    )
+
+
 class LoginUserInfo(BaseModel):
     """User info returned in login response."""
 

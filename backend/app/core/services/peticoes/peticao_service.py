@@ -13,6 +13,7 @@ from app.db.models.peticao import (
     PeticaoDocumento,
     PeticaoStatus,
     TipoDocumento,
+    TipoPeticao,
 )
 from app.db.repositories.peticao import (
     PeticaoDocumentoRepository,
@@ -47,9 +48,14 @@ class PeticaoService:
         data: PeticaoCreate,
     ) -> Peticao:
         """Create a new petition in rascunho status with initial event."""
+        # For petição inicial, use 20 zeros as per MNI 2.2.2
+        processo_numero = data.processo_numero
+        if data.tipo_peticao == TipoPeticao.PETICAO_INICIAL and not processo_numero:
+            processo_numero = "00000000000000000000"
+
         repo = PeticaoRepository(session, tenant_id)
         pet = await repo.create(
-            processo_numero=data.processo_numero,
+            processo_numero=processo_numero,
             tribunal_id=data.tribunal_id,
             tipo_peticao=data.tipo_peticao,
             assunto=data.assunto,

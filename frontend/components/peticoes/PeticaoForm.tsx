@@ -1,17 +1,17 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
-import { Button } from '@/components/ui/button'
+import { useState, useCallback } from 'react'
 import { PeticaoFormDadosProcesso } from './PeticaoFormDadosProcesso'
 import { PeticaoFormUpload } from './PeticaoFormUpload'
 import { PeticaoFormCertificado } from './PeticaoFormCertificado'
 import { PeticaoFormRevisao, useRevisaoValidation } from './PeticaoFormRevisao'
 import { PeticaoAnaliseIA } from './PeticaoAnaliseIA'
 import { CertificadoModal } from './CertificadoModal'
-import { useCreatePeticao, useAnaliseIA } from '@/hooks/api/usePeticoes'
+import { useCreatePeticao, useUploadDocumento, useProtocolar } from '@/hooks/api/usePeticoes'
 import { TRIBUNAIS } from '@/lib/data/tribunais'
 import type { NovaPeticaoFormData, UploadedFile, AnaliseIA } from '@/types/peticoes'
 import { ChevronLeft } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface Props {
   onVoltar: () => void
@@ -31,10 +31,12 @@ export function PeticaoForm({ onVoltar }: Props) {
   const [files, setFiles] = useState<UploadedFile[]>([])
   const [analise, setAnalise] = useState<AnaliseIA | null>(null)
   const [certModalOpen, setCertModalOpen] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const createPeticao = useCreatePeticao()
-  const analiseIA = useAnaliseIA()
-  const isValid = useRevisaoValidation(formData, files, analise)
+  const uploadDocumento = useUploadDocumento()
+  const protocolar = useProtocolar()
+  const isValid = useRevisaoValidation(formData, files)
 
   const tribunal = TRIBUNAIS.find((t) => t.id === formData.tribunalId)
   const limiteArquivoMB = tribunal?.limiteArquivoMB ?? 5
@@ -43,27 +45,81 @@ export function PeticaoForm({ onVoltar }: Props) {
     setFormData((prev) => ({ ...prev, ...partial }))
   }, [])
 
-  // Auto-trigger AI analysis when files are first uploaded
   const hasUploadedFiles = files.some((f) => f.status === 'uploaded')
-  useEffect(() => {
-    if (hasUploadedFiles && !analise && !analiseIA.isPending) {
-      analiseIA.mutate(undefined, {
-        onSuccess: (data) => setAnalise(data),
-      })
-    }
-  }, [hasUploadedFiles]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleReanalisar = () => {
     setAnalise(null)
-    analiseIA.mutate(undefined, {
-      onSuccess: (data) => setAnalise(data),
-    })
   }
 
   const handleProtocolar = async () => {
-    if (!isValid) return
-    await createPeticao.mutateAsync()
-    onVoltar()
+    if (!isValid || isSubmitting) return
+    setIsSubmitting(true)
+
+    try {
+      // 1. Create petition with form data
+      const peticao = await createPeticao.mutateAsync(formData)
+
+      // 2. Upload each file to the created petition
+      const uploadedFiles = files.filter((f) => f.status === 'uploaded')
+      for (let i = 0; i < uploadedFiles.length; i++) {
+        const f = uploadedFiles[i]
+        await uploadDocumento.mutateAsync({
+          peticaoId: peticao.id,
+          arquivo: f.file,
+          tipoDocumento: f.tipoDocumento,
+          ordem: i + 1,
+        })
+      }
+
+      // 3. Trigger filing via worker
+      await protocolar.mutateAsync(peticao.id)
+
+      toast.success('Petição enviada para protocolo!')
+      onVoltar()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao protocolar petição'
+      toast.error(msg)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleSalvarRascunho = async () => {
+    if (isSubmitting) return
+    const minValid =
+      !!formData.tribunalId &&
+      !!formData.tipoPeticao &&
+      formData.assunto.length > 3
+    if (!minValid) {
+      toast.error('Preencha tribunal, tipo e assunto para salvar o rascunho.')
+      return
+    }
+    setIsSubmitting(true)
+
+    try {
+      // 1. Create petition
+      const peticao = await createPeticao.mutateAsync(formData)
+
+      // 2. Upload files if any
+      const uploadedFiles = files.filter((f) => f.status === 'uploaded')
+      for (let i = 0; i < uploadedFiles.length; i++) {
+        const f = uploadedFiles[i]
+        await uploadDocumento.mutateAsync({
+          peticaoId: peticao.id,
+          arquivo: f.file,
+          tipoDocumento: f.tipoDocumento,
+          ordem: i + 1,
+        })
+      }
+
+      toast.success('Rascunho salvo com sucesso!')
+      onVoltar()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao salvar rascunho'
+      toast.error(msg)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -101,7 +157,7 @@ export function PeticaoForm({ onVoltar }: Props) {
           <div className="lg:col-span-1 space-y-4">
             <PeticaoAnaliseIA
               analise={analise}
-              isAnalyzing={analiseIA.isPending}
+              isAnalyzing={false}
               hasDocuments={hasUploadedFiles}
               onReanalisar={handleReanalisar}
             />
@@ -113,19 +169,27 @@ export function PeticaoForm({ onVoltar }: Props) {
           </div>
         </div>
 
-        {/* Fixed submit button */}
+        {/* Fixed action bar */}
         <div className="fixed bottom-0 left-0 right-0 z-20 p-4 md:p-6 flex justify-center pointer-events-none">
-          <div className="pointer-events-auto">
+          <div className="pointer-events-auto flex items-center gap-3">
+            <button
+              onClick={handleSalvarRascunho}
+              disabled={isSubmitting}
+              className="flex items-center gap-2 px-6 py-4 rounded-2xl font-semibold text-sm shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-card border border-border text-foreground hover:bg-muted"
+            >
+              <span className="material-symbols-outlined text-lg">save</span>
+              Salvar Rascunho
+            </button>
             <button
               onClick={handleProtocolar}
-              disabled={!isValid || createPeticao.isPending}
+              disabled={!isValid || isSubmitting}
               className="flex items-center gap-3 px-10 py-4 rounded-2xl font-semibold text-base shadow-2xl transition-all disabled:opacity-50 disabled:cursor-not-allowed enabled:hover:scale-[1.02] enabled:hover:shadow-primary/30"
               style={{ background: 'linear-gradient(135deg, #b8860b, #d4af37)', color: '#0B0F19' }}
             >
-              {createPeticao.isPending ? (
+              {isSubmitting ? (
                 <>
                   <span className="material-symbols-outlined text-xl animate-spin">progress_activity</span>
-                  Protocolando...
+                  Enviando...
                 </>
               ) : (
                 <>
