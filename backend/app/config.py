@@ -80,6 +80,14 @@ class Settings(BaseSettings):
     chatwit_webhook_secret: str = ""
     chatwit_rate_limit_per_minute: int = 100
 
+    # Certificate Encryption
+    encrypt_key: str = ""  # Fernet key (32 bytes base64) for encrypting PFX blobs
+
+    # MNI / Tribunal
+    mni_wsdl_cache_path: str = "/tmp/zeep_cache.db"
+    mni_request_timeout: int = 60
+    mni_max_file_size_mb: int = 5
+
     # DataJud
     DATAJUD_API_URL: str = "https://api-publica.datajud.cnj.jus.br"
     DATAJUD_API_KEY: str = ""

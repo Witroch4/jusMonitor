@@ -96,3 +96,6 @@ temp/
 # Backups
 *.bak
 *.backup
+
+# Certificados digitais
+docs/Amanda Alves de Sousa_07071649316.pfx

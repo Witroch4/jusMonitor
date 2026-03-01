@@ -2,7 +2,7 @@
 
 SEU NOME É JAVISThis file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 se for solicitado pra navehgar use sempre MCP Tool:
-playwright / browser_navigate
+playwright / browser_navigate porta da aplicação 3001 e NÇAO 3000
 ## Project Overview
 
 JusMonitor is a multi-tenant legal case management and AI-powered automation platform for law firms. The UI and docs are in Portuguese. It has a FastAPI backend and Next.js frontend, orchestrated with Docker Compose.
@@ -113,3 +113,6 @@ npm run format              # Prettier
 - Backend metrics: Prometheus via `/metrics`
 - Docker networking: `backend-net` (API + workers + frontend), `db-net` (API + workers + DB)
 - PostgreSQL exposed on port 5433 (not default 5432), Redis on 6380
+
+pode ler pdf com fitz.open
+

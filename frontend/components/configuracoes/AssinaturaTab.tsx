@@ -1,6 +1,9 @@
 'use client'
 
+import { useState } from 'react'
+
 import { useRouter } from 'next/navigation'
+import { CertificadoModal } from '@/components/peticoes/CertificadoModal'
 import {
   FileKey,
   Upload,
@@ -15,7 +18,6 @@ import {
 import { useProfile } from '@/hooks/api/useProfile'
 import {
   useCertificados,
-  useUploadCertificado,
   useTestarCertificado,
   useRemoverCertificado,
 } from '@/hooks/api/useCertificados'
@@ -49,9 +51,9 @@ export function AssinaturaTab() {
   const router = useRouter()
   const { data: profile } = useProfile()
   const { data: certificados, isLoading } = useCertificados()
-  const uploadCert = useUploadCertificado()
   const testarCert = useTestarCertificado()
   const removerCert = useRemoverCertificado()
+  const [modalAberto, setModalAberto] = useState(false)
 
   return (
     <div className="space-y-6">
@@ -119,8 +121,7 @@ export function AssinaturaTab() {
             </div>
             <Button
               size="sm"
-              onClick={() => uploadCert.mutate(null as any)}
-              disabled={uploadCert.isPending}
+              onClick={() => setModalAberto(true)}
               className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               <Upload className="w-4 h-4 mr-1.5" />
@@ -203,6 +204,8 @@ export function AssinaturaTab() {
           )}
         </CardContent>
       </Card>
+
+      <CertificadoModal open={modalAberto} onOpenChange={setModalAberto} />
     </div>
   )
 }

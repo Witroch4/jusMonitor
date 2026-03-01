@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
@@ -9,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Upload } from 'lucide-react'
 import { TIPO_DOCUMENTO_LABELS } from '@/types/peticoes'
 import type { TipoDocumento, UploadedFile } from '@/types/peticoes'
 
@@ -30,6 +32,7 @@ function generateId(): string {
 
 export function PeticaoFormUpload({ files, onFilesChange, limiteArquivoMB }: Props) {
   const [dragOver, setDragOver] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const limitBytes = limiteArquivoMB * 1024 * 1024
 
   const addFiles = useCallback(
@@ -85,12 +88,17 @@ export function PeticaoFormUpload({ files, onFilesChange, limiteArquivoMB }: Pro
           setDragOver(false)
           if (e.dataTransfer.files.length > 0) addFiles(e.dataTransfer.files)
         }}
+        onClick={() => fileInputRef.current?.click()}
         className={cn(
-          'border-2 border-dashed rounded-2xl p-10 text-center transition-all cursor-pointer group',
+          'border-2 border-dashed rounded-2xl p-10 text-center transition-all cursor-pointer group select-none',
           dragOver
-            ? 'border-primary bg-primary/5'
-            : 'border-border hover:border-primary/40 hover:bg-muted/20'
+            ? 'border-primary bg-primary/5 scale-[1.01]'
+            : 'border-border hover:border-primary/50 hover:bg-muted/20'
         )}
+        role="button"
+        tabIndex={0}
+        aria-label="Clique ou arraste arquivos PDF para upload"
+        onKeyDown={(e) => e.key === 'Enter' && fileInputRef.current?.click()}
       >
         <div className={cn(
           'w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 transition-colors',
@@ -100,25 +108,33 @@ export function PeticaoFormUpload({ files, onFilesChange, limiteArquivoMB }: Pro
         )}>
           <span className="material-symbols-outlined text-3xl">upload_file</span>
         </div>
-        <h3 className="text-lg font-medium text-foreground mb-2">
-          Arraste e solte seus arquivos PDF
+        <h3 className="text-lg font-medium text-foreground mb-1">
+          {dragOver ? 'Solte os arquivos aqui' : 'Arraste e solte seus arquivos PDF'}
         </h3>
-        <p className="text-sm text-primary/80 mb-5">
-          Ou clique para selecionar documentos do seu computador
+        <p className="text-sm text-muted-foreground mb-5">
+          ou clique em qualquer area para selecionar
         </p>
-        <label className="px-6 py-2 bg-card border border-border rounded-lg text-sm font-medium text-foreground hover:border-primary hover:text-primary transition-colors shadow-sm cursor-pointer inline-block">
-          Selecionar Arquivos
-          <input
-            type="file"
-            className="hidden"
-            accept=".pdf"
-            multiple
-            onChange={(e) => e.target.files && addFiles(e.target.files)}
-          />
-        </label>
+        <Button
+          type="button"
+          variant="default"
+          size="sm"
+          className="gap-2 pointer-events-none"
+          tabIndex={-1}
+        >
+          <Upload className="h-4 w-4" />
+          Selecionar Arquivos PDF
+        </Button>
         <p className="text-xs text-muted-foreground mt-4">
-          Máximo: {limiteArquivoMB}MB por arquivo (PDF)
+          Máximo: {limiteArquivoMB}MB por arquivo • Somente PDF
         </p>
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          accept=".pdf"
+          multiple
+          onChange={(e) => e.target.files && addFiles(e.target.files)}
+        />
       </div>
 
       {/* File list */}

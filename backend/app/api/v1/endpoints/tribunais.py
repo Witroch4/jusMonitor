@@ -1,0 +1,197 @@
+"""Static tribunal registry endpoint mirroring frontend/lib/data/tribunais.ts."""
+
+from fastapi import APIRouter, HTTPException, status
+
+router = APIRouter(prefix="/tribunais", tags=["tribunais"])
+
+# Static registry of supported courts — mirrors frontend/lib/data/tribunais.ts
+TRIBUNAIS = [
+    {
+        "id": "TJCE-1G",
+        "nome": "TJCE 1º Grau",
+        "nomeCompleto": "Tribunal de Justiça do Ceará — 1º Grau",
+        "instancia": "1º Grau",
+        "jurisdicao": "Estadual",
+        "sistema": "PJe",
+        "wsdlEndpoint": "https://pjews.tjce.jus.br/pje1grau/intercomunicacao",
+        "limiteArquivoMB": 5,
+        "requerMTLS": True,
+        "suportaMNI": True,
+    },
+    {
+        "id": "TJCE-2G",
+        "nome": "TJCE 2º Grau",
+        "nomeCompleto": "Tribunal de Justiça do Ceará — 2º Grau",
+        "instancia": "2º Grau",
+        "jurisdicao": "Estadual",
+        "sistema": "e-SAJ",
+        "wsdlEndpoint": None,
+        "limiteArquivoMB": 5,
+        "requerMTLS": True,
+        "suportaMNI": False,
+        "avisoInstabilidade": "Sistema e-SAJ: roteamento por NPU obrigatório.",
+    },
+    {
+        "id": "TJSP",
+        "nome": "TJSP",
+        "nomeCompleto": "Tribunal de Justiça de São Paulo",
+        "instancia": "Geral",
+        "jurisdicao": "Estadual",
+        "sistema": "e-SAJ",
+        "wsdlEndpoint": None,
+        "limiteArquivoMB": 5,
+        "requerMTLS": True,
+        "suportaMNI": False,
+    },
+    {
+        "id": "TRF5-JFCE",
+        "nome": "TRF5 / JFCE",
+        "nomeCompleto": "TRF 5ª Região — Seção Judiciária do Ceará",
+        "instancia": "Seção CE",
+        "jurisdicao": "Federal",
+        "sistema": "PJe",
+        "wsdlEndpoint": "https://pje.jfce.jus.br/pje/intercomunicacao?wsdl",
+        "limiteArquivoMB": 5,
+        "requerMTLS": True,
+        "suportaMNI": True,
+        "avisoInstabilidade": "Endpoint descentralizado: use este nó para varas federais locais.",
+    },
+    {
+        "id": "TRF5-REG",
+        "nome": "TRF5 Regional",
+        "nomeCompleto": "TRF 5ª Região — Turmas Recursais",
+        "instancia": "Regional",
+        "jurisdicao": "Federal",
+        "sistema": "PJe",
+        "wsdlEndpoint": "https://pje.trf5.jus.br/pje/intercomunicacao?wsdl",
+        "limiteArquivoMB": 5,
+        "requerMTLS": True,
+        "suportaMNI": True,
+    },
+    {
+        "id": "TRF3-1G",
+        "nome": "TRF3 1º Grau",
+        "nomeCompleto": "TRF 3ª Região — 1º Grau (SP)",
+        "instancia": "1º Grau",
+        "jurisdicao": "Federal",
+        "sistema": "PJe",
+        "wsdlEndpoint": "https://pje1g.trf3.jus.br/pje/intercomunicacao?wsdl",
+        "limiteArquivoMB": 5,
+        "requerMTLS": True,
+        "suportaMNI": True,
+    },
+    {
+        "id": "TRF3-2G",
+        "nome": "TRF3 2º Grau",
+        "nomeCompleto": "TRF 3ª Região — 2º Grau (SP)",
+        "instancia": "2º Grau",
+        "jurisdicao": "Federal",
+        "sistema": "PJe",
+        "wsdlEndpoint": "https://pje2g.trf3.jus.br/pje/intercomunicacao?wsdl",
+        "limiteArquivoMB": 5,
+        "requerMTLS": True,
+        "suportaMNI": True,
+    },
+    {
+        "id": "TRF1-1G",
+        "nome": "TRF1 1º Grau",
+        "nomeCompleto": "TRF 1ª Região — 1º Grau (Brasília)",
+        "instancia": "1º Grau",
+        "jurisdicao": "Federal",
+        "sistema": "PJe",
+        "wsdlEndpoint": "https://pje1g.trf1.jus.br/pje/intercomunicacao?wsdl",
+        "limiteArquivoMB": 5,
+        "requerMTLS": True,
+        "suportaMNI": True,
+        "avisoInstabilidade": "TRF1 pode apresentar instabilidade. Retry com backoff exponencial obrigatório.",
+    },
+    {
+        "id": "TRF1-2G",
+        "nome": "TRF1 2º Grau",
+        "nomeCompleto": "TRF 1ª Região — 2º Grau (Brasília)",
+        "instancia": "2º Grau",
+        "jurisdicao": "Federal",
+        "sistema": "PJe",
+        "wsdlEndpoint": "https://pje2g.trf1.jus.br/pje/intercomunicacao?wsdl",
+        "limiteArquivoMB": 5,
+        "requerMTLS": True,
+        "suportaMNI": True,
+        "avisoInstabilidade": "TRF1 pode apresentar instabilidade. Retry com backoff exponencial obrigatório.",
+    },
+    {
+        "id": "TRF4",
+        "nome": "TRF4",
+        "nomeCompleto": "TRF 4ª Região (Sul) — EPROC",
+        "instancia": "Geral",
+        "jurisdicao": "Federal",
+        "sistema": "EPROC",
+        "wsdlEndpoint": "https://eproc.trf4.jus.br/eproc2trf4/intercomunicacao?wsdl",
+        "limiteArquivoMB": 5,
+        "requerMTLS": True,
+        "suportaMNI": True,
+        "avisoInstabilidade": "Sistema EPROC: WSDL segue MNI mas estrutura difere do PJe padrão.",
+    },
+    {
+        "id": "TRT7",
+        "nome": "TRT7",
+        "nomeCompleto": "TRT 7ª Região — Trabalho (CE)",
+        "instancia": "Geral",
+        "jurisdicao": "Trabalho",
+        "sistema": "PJe-CSJT",
+        "wsdlEndpoint": None,
+        "limiteArquivoMB": 5,
+        "requerMTLS": True,
+        "suportaMNI": True,
+        "avisoInstabilidade": "Erro 'processo não ativo' é regra de negócio, não falha de rede.",
+    },
+    {
+        "id": "STF",
+        "nome": "STF",
+        "nomeCompleto": "Supremo Tribunal Federal",
+        "instancia": "Único",
+        "jurisdicao": "Superior",
+        "sistema": "PJe",
+        "wsdlEndpoint": None,
+        "limiteArquivoMB": 5,
+        "requerMTLS": True,
+        "suportaMNI": True,
+    },
+    {
+        "id": "STJ",
+        "nome": "STJ",
+        "nomeCompleto": "Superior Tribunal de Justiça",
+        "instancia": "Único",
+        "jurisdicao": "Superior",
+        "sistema": "PJe",
+        "wsdlEndpoint": None,
+        "limiteArquivoMB": 5,
+        "requerMTLS": True,
+        "suportaMNI": True,
+    },
+]
+
+# Index for O(1) lookup
+_TRIBUNAIS_BY_ID = {t["id"]: t for t in TRIBUNAIS}
+
+
+@router.get("")
+async def list_tribunais() -> list[dict]:
+    """List all supported courts."""
+    return TRIBUNAIS
+
+
+@router.get("/{tribunal_id}")
+async def get_tribunal(tribunal_id: str) -> dict:
+    """Get a single court by ID."""
+    tribunal = _TRIBUNAIS_BY_ID.get(tribunal_id)
+    if tribunal is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Tribunal '{tribunal_id}' não encontrado",
+        )
+    return tribunal
+
+
+def get_tribunal_config(tribunal_id: str) -> dict | None:
+    """Get tribunal config for internal use (no HTTP exception)."""
+    return _TRIBUNAIS_BY_ID.get(tribunal_id)

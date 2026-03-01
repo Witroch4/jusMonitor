@@ -25,6 +25,7 @@ const tribunaisPorJurisdicao = getTribunaisByJurisdicao()
 
 export function PeticaoFormDadosProcesso({ formData, onChange }: Props) {
   const selectedTribunal = TRIBUNAIS.find((t) => t.id === formData.tribunalId)
+  const isPeticaoInicial = formData.tipoPeticao === 'peticao_inicial'
 
   return (
     <div className="bg-card border border-border rounded-2xl p-8 shadow-sm">
@@ -44,7 +45,7 @@ export function PeticaoFormDadosProcesso({ formData, onChange }: Props) {
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Selecionar Tribunal..." />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="max-h-72 overflow-y-auto">
               {JURISDICAO_ORDER.map((jur) => {
                 const tribunais = tribunaisPorJurisdicao[jur]
                 if (tribunais.length === 0) return null
@@ -78,22 +79,20 @@ export function PeticaoFormDadosProcesso({ formData, onChange }: Props) {
           )}
         </div>
 
-        {/* Processo + Tipo */}
+        {/* Tipo de Petição (primeiro para guiar o preenchimento do número) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <div>
-            <Label className="text-sm font-medium mb-2 block">Número do Processo</Label>
-            <Input
-              value={formData.processoNumero}
-              onChange={(e) => onChange({ processoNumero: e.target.value })}
-              placeholder="0000000-00.0000.0.00.0000"
-              className="font-mono"
-            />
-          </div>
           <div>
             <Label className="text-sm font-medium mb-2 block">Tipo de Petição</Label>
             <Select
               value={formData.tipoPeticao || undefined}
-              onValueChange={(v) => onChange({ tipoPeticao: v as TipoPeticao })}
+              onValueChange={(v) => {
+                const tipo = v as TipoPeticao
+                onChange({
+                  tipoPeticao: tipo,
+                  // Limpa número ao trocar para Petição Inicial
+                  ...(tipo === 'peticao_inicial' ? { processoNumero: '' } : {}),
+                })
+              }}
             >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Selecionar tipo..." />
@@ -105,6 +104,32 @@ export function PeticaoFormDadosProcesso({ formData, onChange }: Props) {
               </SelectContent>
             </Select>
           </div>
+
+          <div>
+            <Label className={`text-sm font-medium mb-2 block ${isPeticaoInicial ? 'text-muted-foreground' : ''}`}>
+              Número do Processo
+              {isPeticaoInicial && (
+                <span className="ml-1.5 text-xs font-normal text-muted-foreground">(gerado pelo tribunal)</span>
+              )}
+            </Label>
+            <div className="relative">
+              <Input
+                value={isPeticaoInicial ? '' : formData.processoNumero}
+                onChange={(e) => onChange({ processoNumero: e.target.value })}
+                placeholder={isPeticaoInicial ? 'Será atribuído após o protocolo' : '0000000-00.0000.0.00.0000'}
+                className={`font-mono ${isPeticaoInicial ? 'bg-muted/50 cursor-not-allowed text-muted-foreground' : ''}`}
+                disabled={isPeticaoInicial}
+                autoComplete="off"
+                name="processo-numero"
+              />
+            </div>
+            {isPeticaoInicial && (
+              <p className="mt-1.5 text-xs text-muted-foreground flex items-center gap-1">
+                <span className="material-symbols-outlined text-xs">info</span>
+                Petição Inicial cria um processo novo — o número é gerado pelo tribunal
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Assunto */}
@@ -114,6 +139,8 @@ export function PeticaoFormDadosProcesso({ formData, onChange }: Props) {
             value={formData.assunto}
             onChange={(e) => onChange({ assunto: e.target.value })}
             placeholder="Ex: Indenização por Danos Morais..."
+            autoComplete="off"
+            name="assunto-principal"
           />
         </div>
 

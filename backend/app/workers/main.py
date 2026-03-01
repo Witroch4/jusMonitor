@@ -5,9 +5,7 @@ from app.workers.broker import broker
 # Import all task modules to register them with the broker
 # This ensures tasks are discovered when the worker starts
 from app.workers.tasks import chatwit_handlers  # noqa: F401
-
-# TODO: Import additional task modules as they are created:
-# from app.workers.tasks import embeddings, datajud, ai, notifications
+from app.workers.tasks import peticao_protocolar  # noqa: F401
 
 # Example of how to create tasks:
 # 

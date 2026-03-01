@@ -216,6 +216,18 @@ Endpoints de listagem suportam paginação via query parameters:
             "name": "admin",
             "description": "Super Admin: gestão de tenants, users, agentes IA, workers e métricas globais",
         },
+        {
+            "name": "certificados",
+            "description": "Gestão de certificados digitais A1 (ICP-Brasil) para mTLS e assinatura",
+        },
+        {
+            "name": "peticoes",
+            "description": "Gestão de petições e protocolo eletrônico via MNI 2.2.2",
+        },
+        {
+            "name": "tribunais",
+            "description": "Registro de tribunais com endpoints MNI e configurações",
+        },
     ],
 )
 
@@ -346,6 +358,18 @@ app.include_router(integrations_router, prefix=settings.api_v1_prefix, tags=["in
 from app.api.v1.endpoints.admin import router as admin_router
 
 app.include_router(admin_router, prefix=settings.api_v1_prefix, tags=["admin"])
+
+# Certificados digitais endpoints
+from app.api.v1.endpoints.certificados import router as certificados_router
+
+app.include_router(certificados_router, prefix=settings.api_v1_prefix, tags=["certificados"])
+
+# Petições e Tribunais endpoints
+from app.api.v1.endpoints.peticoes import router as peticoes_router
+from app.api.v1.endpoints.tribunais import router as tribunais_router
+
+app.include_router(peticoes_router, prefix=settings.api_v1_prefix, tags=["peticoes"])
+app.include_router(tribunais_router, prefix=settings.api_v1_prefix, tags=["tribunais"])
 
 # Serve static files (avatars, etc.)
 import os

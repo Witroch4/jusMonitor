@@ -24,6 +24,16 @@ from app.db.models.user_preference import UserPreference
 from app.db.models.notification import Notification
 from app.db.models.agent_execution_log import AgentExecutionLog
 from app.db.models.worker_schedule import WorkerSchedule
+from app.db.models.certificado_digital import CertificadoDigital
+from app.db.models.peticao import (
+    DocumentoStatus,
+    Peticao,
+    PeticaoDocumento,
+    PeticaoEvento,
+    PeticaoStatus,
+    TipoDocumento,
+    TipoPeticao,
+)
 
 __all__ = [
     "Tenant",
@@ -53,4 +63,12 @@ __all__ = [
     "AuditLog",
     "AgentExecutionLog",
     "WorkerSchedule",
+    "CertificadoDigital",
+    "Peticao",
+    "PeticaoDocumento",
+    "PeticaoEvento",
+    "PeticaoStatus",
+    "TipoPeticao",
+    "TipoDocumento",
+    "DocumentoStatus",
 ]

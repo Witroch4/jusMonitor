@@ -91,7 +91,7 @@ export function PeticaoList({ onNovaPeticao }: PeticaoListProps) {
           <SelectTrigger className="w-full md:w-[180px]">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="max-h-64 overflow-y-auto">
             <SelectItem value="all">Todos os Status</SelectItem>
             {(Object.keys(STATUS_LABELS) as PeticaoStatus[]).map((s) => (
               <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>
@@ -102,7 +102,7 @@ export function PeticaoList({ onNovaPeticao }: PeticaoListProps) {
           <SelectTrigger className="w-full md:w-[180px]">
             <SelectValue placeholder="Tribunal" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="max-h-72 overflow-y-auto">
             <SelectItem value="all">Todos os Tribunais</SelectItem>
             {TRIBUNAIS.map((t) => (
               <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>

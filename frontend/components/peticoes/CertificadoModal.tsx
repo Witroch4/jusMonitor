@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
+import { Upload, FileKey } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -42,15 +43,22 @@ export function CertificadoModal({ open, onOpenChange }: Props) {
   const [nomeAmigavel, setNomeAmigavel] = useState('')
   const [senha, setSenha] = useState('')
   const [arquivo, setArquivo] = useState<File | null>(null)
+  const [dragOverCert, setDragOverCert] = useState(false)
+  const certFileRef = useRef<HTMLInputElement>(null)
   const [testResults, setTestResults] = useState<Record<string, { sucesso: boolean; mensagem: string }>>({})
 
   const handleUpload = async () => {
-    if (!arquivo || !nomeAmigavel) return
-    await upload.mutateAsync({ nomeAmigavel })
+    if (!arquivo || !nomeAmigavel || !senha) return
+    await upload.mutateAsync({
+      arquivo,
+      nome: nomeAmigavel,
+      senhaPfx: senha,
+    })
     setShowForm(false)
     setNomeAmigavel('')
     setSenha('')
     setArquivo(null)
+    setDragOverCert(false)
   }
 
   const handleTestar = async (id: string) => {
@@ -164,13 +172,57 @@ export function CertificadoModal({ open, onOpenChange }: Props) {
             </h4>
             <div className="space-y-3">
               <div>
-                <Label className="text-xs mb-1 block">Arquivo PFX/P12</Label>
-                <Input
-                  type="file"
-                  accept=".pfx,.p12"
-                  onChange={(e) => setArquivo(e.target.files?.[0] ?? null)}
-                  className="text-sm"
-                />
+                <Label className="text-xs mb-2 block">Arquivo PFX/P12</Label>
+                <div
+                  onClick={() => certFileRef.current?.click()}
+                  onDragOver={(e) => { e.preventDefault(); setDragOverCert(true) }}
+                  onDragLeave={() => setDragOverCert(false)}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    setDragOverCert(false)
+                    const file = e.dataTransfer.files?.[0]
+                    if (file) setArquivo(file)
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => e.key === 'Enter' && certFileRef.current?.click()}
+                  aria-label="Selecionar arquivo PFX ou P12"
+                  className={cn(
+                    'flex items-center gap-3 w-full rounded-lg border-2 border-dashed px-4 py-3 cursor-pointer transition-all select-none',
+                    dragOverCert
+                      ? 'border-primary bg-primary/10 scale-[1.01]'
+                      : arquivo
+                        ? 'border-emerald-500/50 bg-emerald-500/5 hover:border-emerald-500/80'
+                        : 'border-border hover:border-primary/50 hover:bg-muted/30'
+                  )}
+                >
+                  <div className={cn(
+                    'w-8 h-8 rounded-md flex items-center justify-center shrink-0 transition-colors',
+                    arquivo ? 'bg-emerald-500/15 text-emerald-600' : 'bg-muted text-muted-foreground'
+                  )}>
+                    {arquivo ? <FileKey className="h-4 w-4" /> : <Upload className="h-4 w-4" />}
+                  </div>
+                  <div className="flex-1 min-w-0 text-left">
+                    {arquivo ? (
+                      <>
+                        <p className="text-sm font-medium text-foreground truncate">{arquivo.name}</p>
+                        <p className="text-xs text-muted-foreground">{(arquivo.size / 1024).toFixed(1)} KB • Clique para trocar</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm font-medium text-foreground">Selecionar arquivo .pfx / .p12</p>
+                        <p className="text-xs text-muted-foreground">Clique ou arraste o certificado aqui</p>
+                      </>
+                    )}
+                  </div>
+                  <input
+                    ref={certFileRef}
+                    type="file"
+                    accept=".pfx,.p12"
+                    className="hidden"
+                    onChange={(e) => setArquivo(e.target.files?.[0] ?? null)}
+                  />
+                </div>
               </div>
               <div>
                 <Label className="text-xs mb-1 block">Senha do Certificado</Label>
@@ -194,7 +246,7 @@ export function CertificadoModal({ open, onOpenChange }: Props) {
                 O certificado será criptografado (AES-128-CBC) e armazenado com segurança
               </p>
               <div className="flex gap-2 pt-1">
-                <Button onClick={handleUpload} disabled={!arquivo || !nomeAmigavel || upload.isPending} size="sm">
+                <Button onClick={handleUpload} disabled={!arquivo || !nomeAmigavel || !senha || upload.isPending} size="sm">
                   {upload.isPending ? 'Salvando...' : 'Salvar Certificado'}
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => setShowForm(false)}>
