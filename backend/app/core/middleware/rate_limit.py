@@ -81,7 +81,7 @@ class RateLimitMiddleware:
         return "unknown"
 
     def _make_redis_key(self, client_id: str, window: int) -> str:
-        return f"jusmonitor:ratelimit:{client_id}:{window}"
+        return f"jusmonitoria:ratelimit:{client_id}:{window}"
 
     async def _check_rate_limit(
         self, client_id: str, limit: int

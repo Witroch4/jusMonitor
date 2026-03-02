@@ -17,7 +17,7 @@ async def test_redis_connection():
         print("✓ Redis connection successful")
         
         # Test rate limit key operations
-        test_key = "jusmonitor:ratelimit:test:12345"
+        test_key = "jusmonitoria:ratelimit:test:12345"
         count = await r.incr(test_key)
         print(f"✓ Redis INCR operation successful (count: {count})")
         

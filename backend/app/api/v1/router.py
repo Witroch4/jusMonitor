@@ -2,7 +2,16 @@
 
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, certificados, clients, dashboard, leads, webhooks
+from app.api.v1.endpoints import (
+    auth,
+    certificados,
+    clients,
+    dashboard,
+    leads,
+    peticoes,
+    processos,
+    webhooks,
+)
 
 # Create main API v1 router
 api_router = APIRouter(prefix="/v1")
@@ -14,5 +23,7 @@ api_router.include_router(dashboard.router)
 api_router.include_router(leads.router)
 api_router.include_router(webhooks.router)
 api_router.include_router(certificados.router)
+api_router.include_router(peticoes.router)
+api_router.include_router(processos.router)
 
 __all__ = ["api_router"]

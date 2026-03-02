@@ -56,7 +56,7 @@ The middleware uses a sliding window approach:
 ```python
 current_time = int(time.time())
 current_window = current_time // 60  # Minute-based window
-key = f"jusmonitor:ratelimit:{client_id}:{window}"
+key = f"jusmonitoria:ratelimit:{client_id}:{window}"
 
 count = await redis.incr(key)
 if count == 1:
@@ -181,12 +181,12 @@ pytest tests/integration/test_rate_limiting.py -v
 Rate limit counters are stored in Redis with the following key pattern:
 
 ```
-jusmonitor:ratelimit:{client_id}:{window}
+jusmonitoria:ratelimit:{client_id}:{window}
 ```
 
 Example:
 ```
-jusmonitor:ratelimit:user:123e4567-e89b-12d3-a456-426614174000:28401120
+jusmonitoria:ratelimit:user:123e4567-e89b-12d3-a456-426614174000:28401120
 ```
 
 Keys automatically expire after 2 minutes.

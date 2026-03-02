@@ -1,10 +1,10 @@
-# JusMonitor - CRM Orquestrador
+# JusMonitorIA - CRM Orquestrador
 
 Sistema multi-tenant de gestão jurídica que integra CRM, monitoramento processual automatizado e inteligência artificial para escritórios de advocacia.
 
 ## 🚀 Visão Geral
 
-O JusMonitor orquestra a comunicação entre clientes (via Chatwit), monitoramento de processos (DataJud) e agentes de IA especializados para automatizar triagem, investigação e redação de documentos jurídicos.
+O JusMonitorIA orquestra a comunicação entre clientes (via Chatwit), monitoramento de processos (DataJud) e agentes de IA especializados para automatizar triagem, investigação e redação de documentos jurídicos.
 
 ### Principais Funcionalidades
 
@@ -163,7 +163,7 @@ Este é o método mais rápido para rodar o sistema completo:
 ```bash
 # 1. Clonar o repositório
 git clone <repository-url>
-cd jusmonitor
+cd jusmonitoria
 
 # 2. Configurar variáveis de ambiente
 cp backend/.env.example backend/.env
@@ -277,11 +277,11 @@ cp .env.example .env
 nano .env
 
 # Ajustar URLs para localhost:
-# DATABASE_URL=postgresql+asyncpg://jusmonitor:jusmonitor_dev_password@localhost:5432/jusmonitor
+# DATABASE_URL=postgresql+asyncpg://jusmonitoria:jusmonitoria_dev_password@localhost:5432/jusmonitoria
 # REDIS_URL=redis://localhost:6379/0
 
 # Criar banco de dados
-createdb jusmonitor
+createdb jusmonitoria
 
 # Aplicar migrations
 alembic upgrade head
@@ -395,7 +395,7 @@ docker-compose up -d postgres
 
 ```bash
 # Instalar extensão pgvector
-docker-compose exec postgres psql -U jusmonitor -d jusmonitor -c "CREATE EXTENSION IF NOT EXISTS vector;"
+docker-compose exec postgres psql -U jusmonitoria -d jusmonitoria -c "CREATE EXTENSION IF NOT EXISTS vector;"
 ```
 
 #### Erro: "Module not found" no backend
@@ -435,7 +435,7 @@ docker-compose restart backend
 ## 🗂️ Estrutura do Projeto
 
 ```
-jusmonitor/
+jusmonitoria/
 ├── backend/                    # API FastAPI + Workers
 │   ├── app/
 │   │   ├── api/               # Camada de API REST
@@ -992,7 +992,7 @@ GET /api/v1/clients?search=João Silva
 
 ```python
 # backend/app/config.py
-CORS_ORIGINS = ["https://app.jusmonitor.com"]  # Apenas origens confiáveis
+CORS_ORIGINS = ["https://app.jusmonitoria.com"]  # Apenas origens confiáveis
 CORS_ALLOW_CREDENTIALS = True
 
 # Headers de segurança
@@ -1026,7 +1026,7 @@ RATE_LIMIT_AI_PER_MINUTE = 10
 
 ### Reportar Vulnerabilidades
 
-Se você descobrir uma vulnerabilidade de segurança, por favor **NÃO** abra uma issue pública. Envie um email para security@jusmonitor.com com:
+Se você descobrir uma vulnerabilidade de segurança, por favor **NÃO** abra uma issue pública. Envie um email para security@jusmonitoria.com com:
 
 - Descrição da vulnerabilidade
 - Passos para reproduzir
@@ -1233,7 +1233,7 @@ docker-compose logs --tail=100 backend
 # Acessar shell do container
 docker-compose exec backend bash
 docker-compose exec frontend sh
-docker-compose exec postgres psql -U jusmonitor -d jusmonitor
+docker-compose exec postgres psql -U jusmonitoria -d jusmonitoria
 
 # Executar comando Python no backend
 docker-compose exec backend python -c "from app.db.session import engine; print(engine)"
@@ -1246,7 +1246,7 @@ docker-compose exec redis redis-cli
 
 ```bash
 # Analisar queries lentas do PostgreSQL
-docker-compose exec postgres psql -U jusmonitor -d jusmonitor -c "
+docker-compose exec postgres psql -U jusmonitoria -d jusmonitoria -c "
   SELECT query, mean_exec_time, calls 
   FROM pg_stat_statements 
   ORDER BY mean_exec_time DESC 
@@ -1254,7 +1254,7 @@ docker-compose exec postgres psql -U jusmonitor -d jusmonitor -c "
 "
 
 # Ver conexões ativas no banco
-docker-compose exec postgres psql -U jusmonitor -d jusmonitor -c "
+docker-compose exec postgres psql -U jusmonitoria -d jusmonitoria -c "
   SELECT count(*) FROM pg_stat_activity;
 "
 
@@ -1265,8 +1265,8 @@ docker-compose exec redis redis-cli FLUSHALL
 docker-compose exec redis redis-cli INFO memory
 
 # Ver tamanho do banco de dados
-docker-compose exec postgres psql -U jusmonitor -d jusmonitor -c "
-  SELECT pg_size_pretty(pg_database_size('jusmonitor'));
+docker-compose exec postgres psql -U jusmonitoria -d jusmonitoria -c "
+  SELECT pg_size_pretty(pg_database_size('jusmonitoria'));
 "
 ```
 
@@ -1274,16 +1274,16 @@ docker-compose exec postgres psql -U jusmonitor -d jusmonitor -c "
 
 ```bash
 # Backup do banco de dados
-docker-compose exec postgres pg_dump -U jusmonitor jusmonitor > backup_$(date +%Y%m%d_%H%M%S).sql
+docker-compose exec postgres pg_dump -U jusmonitoria jusmonitoria > backup_$(date +%Y%m%d_%H%M%S).sql
 
 # Restore do banco de dados
-docker-compose exec -T postgres psql -U jusmonitor jusmonitor < backup_20240115_103045.sql
+docker-compose exec -T postgres psql -U jusmonitoria jusmonitoria < backup_20240115_103045.sql
 
 # Backup com compressão
-docker-compose exec postgres pg_dump -U jusmonitor jusmonitor | gzip > backup_$(date +%Y%m%d_%H%M%S).sql.gz
+docker-compose exec postgres pg_dump -U jusmonitoria jusmonitoria | gzip > backup_$(date +%Y%m%d_%H%M%S).sql.gz
 
 # Restore de backup comprimido
-gunzip -c backup_20240115_103045.sql.gz | docker-compose exec -T postgres psql -U jusmonitor jusmonitor
+gunzip -c backup_20240115_103045.sql.gz | docker-compose exec -T postgres psql -U jusmonitoria jusmonitoria
 ```
 
 ### Produção
@@ -1365,7 +1365,7 @@ Em ambiente de teste (Docker local, 4 CPU, 8GB RAM):
 curl http://localhost:8000/metrics | grep http_request_duration
 
 # Queries lentas (> 1s)
-docker-compose exec postgres psql -U jusmonitor -d jusmonitor -c "
+docker-compose exec postgres psql -U jusmonitoria -d jusmonitoria -c "
   SELECT query, mean_exec_time, calls 
   FROM pg_stat_statements 
   WHERE mean_exec_time > 1000
@@ -1383,7 +1383,7 @@ Contribuições são bem-vindas! Por favor, leia o [Guia de Contribuição](CONT
 ### Processo de Contribuição
 
 1. **Fork** o repositório
-2. **Clone** seu fork: `git clone https://github.com/seu-usuario/jusmonitor.git`
+2. **Clone** seu fork: `git clone https://github.com/seu-usuario/jusmonitoria.git`
 3. **Crie uma branch** para sua feature: `git checkout -b feature/minha-feature`
 4. **Faça suas alterações** seguindo os padrões de código
 5. **Escreva testes** para suas alterações
@@ -1425,13 +1425,13 @@ Todos os PRs passam por code review. Verificamos:
 
 ## 📝 Licença
 
-Este projeto é proprietário e confidencial. Todos os direitos reservados © 2024 JusMonitor.
+Este projeto é proprietário e confidencial. Todos os direitos reservados © 2024 JusMonitorIA.
 
 Uso não autorizado, cópia, modificação ou distribuição deste software é estritamente proibido.
 
 ## 👥 Equipe
 
-**JusMonitor Team**
+**JusMonitorIA Team**
 
 - Product Owner: [Nome]
 - Tech Lead: [Nome]
@@ -1444,10 +1444,10 @@ Uso não autorizado, cópia, modificação ou distribuição deste software é e
 
 ### Suporte Técnico
 
-- **Email**: suporte@jusmonitor.com
-- **Slack**: #jusmonitor-support (interno)
-- **Documentação**: https://docs.jusmonitor.com
-- **Status Page**: https://status.jusmonitor.com
+- **Email**: suporte@jusmonitoria.com
+- **Slack**: #jusmonitoria-support (interno)
+- **Documentação**: https://docs.jusmonitoria.com
+- **Status Page**: https://status.jusmonitoria.com
 
 ### Reportar Bugs
 
@@ -1519,4 +1519,4 @@ Abra uma issue com label `enhancement`:
 
 ---
 
-**Desenvolvido com ❤️ pela equipe JusMonitor**
+**Desenvolvido com ❤️ pela equipe JusMonitorIA**

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the HTTP compression and caching implementation for the JusMonitor CRM Orquestrador backend API. These optimizations improve performance by reducing bandwidth usage and enabling browser caching.
+This document describes the HTTP compression and caching implementation for the JusMonitorIA CRM Orquestrador backend API. These optimizations improve performance by reducing bandwidth usage and enabling browser caching.
 
 ## Features Implemented
 

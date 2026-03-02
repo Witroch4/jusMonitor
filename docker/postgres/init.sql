@@ -11,10 +11,10 @@ CREATE TEXT SEARCH CONFIGURATION portuguese (COPY = pg_catalog.portuguese);
 CREATE SCHEMA IF NOT EXISTS public;
 
 -- Grant permissions
-GRANT ALL ON SCHEMA public TO jusmonitor;
-GRANT ALL ON ALL TABLES IN SCHEMA public TO jusmonitor;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO jusmonitor;
+GRANT ALL ON SCHEMA public TO jusmonitoria;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO jusmonitoria;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO jusmonitoria;
 
 -- Set default privileges for future objects
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO jusmonitor;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO jusmonitor;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO jusmonitoria;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO jusmonitoria;

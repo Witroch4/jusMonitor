@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# JusMonitor - Script de Migrations
+# JusMonitorIA - Script de Migrations
 # Gerencia migrations do banco de dados com Alembic
 
 set -e
@@ -55,7 +55,7 @@ if ! docker-compose ps postgres | grep -q "Up"; then
     
     # Aguardar PostgreSQL estar pronto
     print_info "Aguardando PostgreSQL inicializar..."
-    until docker-compose exec -T postgres pg_isready -U jusmonitor &>/dev/null; do
+    until docker-compose exec -T postgres pg_isready -U jusmonitoria &>/dev/null; do
         echo -n "."
         sleep 1
     done
@@ -65,7 +65,7 @@ fi
 
 # Habilitar extensão pgvector
 print_info "Habilitando extensão pgvector..."
-docker-compose exec -T postgres psql -U jusmonitor -d jusmonitor -c "CREATE EXTENSION IF NOT EXISTS vector;" 2>/dev/null || true
+docker-compose exec -T postgres psql -U jusmonitoria -d jusmonitoria -c "CREATE EXTENSION IF NOT EXISTS vector;" 2>/dev/null || true
 
 # Parse comando
 COMMAND=${1:-"upgrade"}
@@ -168,9 +168,9 @@ case $COMMAND in
             print_warning "Resetando banco de dados..."
             
             # Dropar e recriar banco
-            docker-compose exec -T postgres psql -U jusmonitor -c "DROP DATABASE IF EXISTS jusmonitor;"
-            docker-compose exec -T postgres psql -U jusmonitor -c "CREATE DATABASE jusmonitor;"
-            docker-compose exec -T postgres psql -U jusmonitor -d jusmonitor -c "CREATE EXTENSION IF NOT EXISTS vector;"
+            docker-compose exec -T postgres psql -U jusmonitoria -c "DROP DATABASE IF EXISTS jusmonitoria;"
+            docker-compose exec -T postgres psql -U jusmonitoria -c "CREATE DATABASE jusmonitoria;"
+            docker-compose exec -T postgres psql -U jusmonitoria -d jusmonitoria -c "CREATE EXTENSION IF NOT EXISTS vector;"
             
             # Aplicar migrations
             docker-compose run --rm backend alembic upgrade head

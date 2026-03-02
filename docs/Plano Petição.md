@@ -4,8 +4,18 @@
 O objetivo desta fase foi construir do zero o backend para protocolo de petições nos tribunais brasileiros via MNI 2.2.2 (SOAP/WSDL) com certificado digital A1 (ICP-Brasil) e mTLS, uma vez que o frontend estava 100% completo com mock data. A arquitetura foi orientada à segurança ("Cofre"), mantendo certificados ICP-Brasil seguros em repouso com criptografia Fernet (AES-128-CBC) e realizando operações mTLS e de assinatura com footprint zero no disco (somente descriptografia em RAM arquivos temporários `tempfile` efêmeros seguros).
 Super Admin User:
 witalo_rocha@hotmail.com
-W#@@%¨&!B!!!UN<L=
-
+Witalosenha1616Master1616
+IMPORTYANTE!!
+docs/intercomunicacao-2.2.2/tipos-servico-intercomunicacao-2.2.2.xsd
+docs/intercomunicacao-2.2.2/intercomunicacao-2.2.2.xsd
+certificado
+docs/Amanda Alves de Sousa_07071649316.pfx
+cpf
+07071649316
+OAB 
+50784 CE
+senha
+22051998
 
 ## Resumo das Entregas Implementadas (Fases 2A, 2B e 2C)
 

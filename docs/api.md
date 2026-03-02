@@ -1,10 +1,10 @@
-# JusMonitor API Documentation
+# JusMonitorIA API Documentation
 
 ## Visão Geral
 
-A API do JusMonitor é uma API REST construída com FastAPI que fornece acesso completo às funcionalidades do sistema de CRM jurídico.
+A API do JusMonitorIA é uma API REST construída com FastAPI que fornece acesso completo às funcionalidades do sistema de CRM jurídico.
 
-**Base URL**: `http://localhost:8000` (desenvolvimento) ou `https://api.jusmonitor.com` (produção)
+**Base URL**: `http://localhost:8000` (desenvolvimento) ou `https://api.jusmonitoria.com` (produção)
 
 **Versão**: v1
 
@@ -1032,6 +1032,6 @@ Você pode testar todos os endpoints diretamente pela interface do Swagger UI.
 
 Para dúvidas ou problemas com a API:
 
-- **Email**: suporte@jusmonitor.com
-- **Documentação**: https://docs.jusmonitor.com
-- **Status**: https://status.jusmonitor.com
+- **Email**: suporte@jusmonitoria.com
+- **Documentação**: https://docs.jusmonitoria.com
+- **Status**: https://status.jusmonitoria.com

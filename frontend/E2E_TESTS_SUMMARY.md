@@ -2,7 +2,7 @@
 
 ## Visão Geral
 
-Implementação completa de testes End-to-End (E2E) usando Playwright para o frontend do JusMonitor CRM Orquestrador.
+Implementação completa de testes End-to-End (E2E) usando Playwright para o frontend do JusMonitorIA CRM Orquestrador.
 
 ## O Que Foi Implementado
 

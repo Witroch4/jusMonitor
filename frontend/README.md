@@ -1,6 +1,6 @@
-# JusMonitor Frontend
+# JusMonitorIA Frontend
 
-Frontend web application para o sistema JusMonitor CRM Orquestrador.
+Frontend web application para o sistema JusMonitorIA CRM Orquestrador.
 
 ## Stack Tecnológica
 
@@ -99,4 +99,4 @@ npx shadcn-ui@latest add card
 
 ## Licença
 
-Proprietário - JusMonitor
+Proprietário - JusMonitorIA

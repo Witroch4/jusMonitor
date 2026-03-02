@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the graceful shutdown implementation for the JusMonitor CRM Orquestrador backend. The system handles SIGTERM and SIGINT signals properly to ensure clean shutdown during deployments, restarts, or container orchestration events.
+This document describes the graceful shutdown implementation for the JusMonitorIA CRM Orquestrador backend. The system handles SIGTERM and SIGINT signals properly to ensure clean shutdown during deployments, restarts, or container orchestration events.
 
 ## Architecture
 
@@ -167,14 +167,14 @@ Configure proper termination grace period:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: jusmonitor-backend
+  name: jusmonitoria-backend
 spec:
   template:
     spec:
       terminationGracePeriodSeconds: 45
       containers:
       - name: backend
-        image: jusmonitor-backend:latest
+        image: jusmonitoria-backend:latest
         lifecycle:
           preStop:
             exec:

@@ -45,6 +45,7 @@ export function PeticaoFormUpload({ files, onFilesChange, limiteArquivoMB }: Pro
           file,
           id: generateId(),
           tipoDocumento: (files.length === 0 && i === 0 ? 'peticao_principal' : 'anexo') as TipoDocumento,
+          sigiloso: false,
           status: overLimit || notPdf ? 'error' : 'uploaded',
           erroValidacao: overLimit
             ? `Arquivo excede o limite de ${limiteArquivoMB}MB`
@@ -68,6 +69,13 @@ export function PeticaoFormUpload({ files, onFilesChange, limiteArquivoMB }: Pro
   const updateFileType = useCallback(
     (id: string, tipo: TipoDocumento) => {
       onFilesChange(files.map((f) => (f.id === id ? { ...f, tipoDocumento: tipo } : f)))
+    },
+    [files, onFilesChange]
+  )
+
+  const toggleSigiloso = useCallback(
+    (id: string) => {
+      onFilesChange(files.map((f) => (f.id === id ? { ...f, sigiloso: !f.sigiloso } : f)))
     },
     [files, onFilesChange]
   )
@@ -175,6 +183,22 @@ export function PeticaoFormUpload({ files, onFilesChange, limiteArquivoMB }: Pro
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
+                {/* Sigiloso toggle */}
+                <button
+                  type="button"
+                  onClick={() => toggleSigiloso(f.id)}
+                  title={f.sigiloso ? 'Marcar como público' : 'Marcar como sigiloso'}
+                  className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-xs font-medium transition-colors ${
+                    f.sigiloso
+                      ? 'border-amber-500/60 bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                      : 'border-border bg-transparent text-muted-foreground hover:border-amber-500/40 hover:text-amber-600'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-sm">
+                    {f.sigiloso ? 'lock' : 'lock_open'}
+                  </span>
+                  <span className="hidden sm:inline">{f.sigiloso ? 'Sigiloso' : 'Público'}</span>
+                </button>
                 <Select
                   value={f.tipoDocumento}
                   onValueChange={(v) => updateFileType(f.id, v as TipoDocumento)}

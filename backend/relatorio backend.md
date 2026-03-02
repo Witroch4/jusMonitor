@@ -1,4 +1,4 @@
-# Relatório Completo do Backend - JusMonitor
+# Relatório Completo do Backend - JusMonitorIA
 
 O backend é uma aplicação **FastAPI modular multi-tenant** com arquitetura em camadas, utilizando **async/await** em toda a stack e integração de IA com múltiplos provedores.
 

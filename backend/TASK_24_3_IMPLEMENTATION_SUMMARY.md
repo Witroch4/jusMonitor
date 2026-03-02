@@ -6,7 +6,7 @@
 
 ## Overview
 
-Successfully implemented HTTP compression and caching optimizations for the JusMonitor CRM Orquestrador FastAPI backend to improve performance and reduce bandwidth usage.
+Successfully implemented HTTP compression and caching optimizations for the JusMonitorIA CRM Orquestrador FastAPI backend to improve performance and reduce bandwidth usage.
 
 ## Implementation Details
 

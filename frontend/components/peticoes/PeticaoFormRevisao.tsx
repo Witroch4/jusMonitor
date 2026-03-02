@@ -28,7 +28,7 @@ export function PeticaoFormRevisao({ formData, files, analise }: Props) {
     { label: 'Tribunal selecionado', ok: !!formData.tribunalId },
     { label: isPeticaoInicial ? 'Número gerado pelo tribunal' : 'Número do processo preenchido', ok: processoOk },
     { label: 'Tipo de petição selecionado', ok: !!formData.tipoPeticao },
-    { label: 'Assunto preenchido', ok: formData.assunto.length > 3 },
+    { label: 'Matéria preenchida', ok: (formData.dadosBasicos?.assuntos?.length || 0) > 0 },
     { label: 'Documento principal anexado', ok: hasPrincipal },
     { label: 'Certificado digital selecionado', ok: !!formData.certificadoId },
   ]
@@ -110,7 +110,7 @@ export function useRevisaoValidation(
     !!formData.tribunalId &&
     processoOk &&
     !!formData.tipoPeticao &&
-    formData.assunto.length > 3 &&
+    (formData.dadosBasicos?.assuntos?.length || 0) > 0 &&
     hasPrincipal &&
     !!formData.certificadoId
   )

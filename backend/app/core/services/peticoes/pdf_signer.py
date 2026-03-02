@@ -23,7 +23,7 @@ class PdfSignerService:
         pfx_encrypted: bytes,
         pfx_password_encrypted: bytes,
         crypto: CertificateCryptoService,
-        reason: str = "Peticionamento eletrônico via JusMonitor",
+        reason: str = "Peticionamento eletrônico via JusMonitorIA",
         location: str = "Brasil",
     ) -> bytes:
         """
@@ -61,7 +61,7 @@ class PdfSignerService:
             result = signers.sign_pdf(
                 w,
                 signers.PdfSignatureMetadata(
-                    field_name="JusMonitorSig",
+                    field_name="JusMonitorIASig",
                     reason=reason,
                     location=location,
                 ),

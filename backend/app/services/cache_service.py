@@ -108,7 +108,7 @@ class CacheService:
         Returns:
             Full cache key with prefix
         """
-        prefix = "jusmonitor:cache"
+        prefix = "jusmonitoria:cache"
         
         if tenant_id:
             return f"{prefix}:tenant:{tenant_id}:{key}"

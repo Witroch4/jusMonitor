@@ -1,6 +1,6 @@
 # Database Seeds
 
-This directory contains seed data for development and testing of the JusMonitor CRM system.
+This directory contains seed data for development and testing of the JusMonitorIA CRM system.
 
 ## Overview
 
@@ -168,7 +168,7 @@ python -m cli.seed --all
 ### Database Connection
 Check your `.env` file has correct database credentials:
 ```
-DATABASE_URL=postgresql+asyncpg://user:pass@localhost/jusmonitor
+DATABASE_URL=postgresql+asyncpg://user:pass@localhost/jusmonitoria
 ```
 
 ### Missing Dependencies

@@ -1,6 +1,6 @@
-# JusMonitor Backend
+# JusMonitorIA Backend
 
-Backend API para o sistema JusMonitor CRM Orquestrador.
+Backend API para o sistema JusMonitorIA CRM Orquestrador.
 
 ## Stack Tecnológica
 
@@ -145,4 +145,4 @@ poetry run taskiq worker app.workers.broker:broker
 
 ## Licença
 
-Proprietário - JusMonitor
+Proprietário - JusMonitorIA

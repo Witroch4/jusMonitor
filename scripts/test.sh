@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# JusMonitor - Script de Testes
+# JusMonitorIA - Script de Testes
 # Executa todos os testes do projeto (backend e frontend)
 
 set -e

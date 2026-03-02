@@ -1,8 +1,8 @@
-# Design Técnico: JusMonitor CRM Orquestrador
+# Design Técnico: JusMonitorIA CRM Orquestrador
 
 ## Overview
 
-O JusMonitor é uma plataforma multi-tenant de gestão jurídica que integra CRM, monitoramento processual automatizado e inteligência artificial para aaescritórios de advocacia. O sistema orquestra a comunicação entre clientes (via Chatwit), monitoramento de processos (DataJud) e agentes de IA especializados para automatizar triagem, investigação e redação de documentos jurídicos.
+O JusMonitorIA é uma plataforma multi-tenant de gestão jurídica que integra CRM, monitoramento processual automatizado e inteligência artificial para aaescritórios de advocacia. O sistema orquestra a comunicação entre clientes (via Chatwit), monitoramento de processos (DataJud) e agentes de IA especializados para automatizar triagem, investigação e redação de documentos jurídicos.
 
 ### Objetivos Principais
 
@@ -2952,8 +2952,8 @@ services:
   postgres:
     image: pgvector/pgvector:pg17
     environment:
-      POSTGRES_DB: jusmonitor
-      POSTGRES_USER: jusmonitor
+      POSTGRES_DB: jusmonitoria
+      POSTGRES_USER: jusmonitoria
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -3488,35 +3488,35 @@ After analyzing all acceptance criteria, I identified the following redundancies
 ### Exception Hierarchy
 
 ```python
-class JusMonitorException(Exception):
-    """Base exception for all JusMonitor errors"""
+class JusMonitorIAException(Exception):
+    """Base exception for all JusMonitorIA errors"""
     def __init__(self, message: str, code: str, details: dict = None):
         self.message = message
         self.code = code
         self.details = details or {}
         super().__init__(self.message)
 
-class ValidationError(JusMonitorException):
+class ValidationError(JusMonitorIAException):
     """Validation errors (400)"""
     pass
 
-class AuthenticationError(JusMonitorException):
+class AuthenticationError(JusMonitorIAException):
     """Authentication errors (401)"""
     pass
 
-class AuthorizationError(JusMonitorException):
+class AuthorizationError(JusMonitorIAException):
     """Authorization errors (403)"""
     pass
 
-class NotFoundError(JusMonitorException):
+class NotFoundError(JusMonitorIAException):
     """Resource not found (404)"""
     pass
 
-class RateLimitError(JusMonitorException):
+class RateLimitError(JusMonitorIAException):
     """Rate limit exceeded (429)"""
     pass
 
-class ExternalServiceError(JusMonitorException):
+class ExternalServiceError(JusMonitorIAException):
     """External service errors (502/503)"""
     pass
 
@@ -3536,10 +3536,10 @@ from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 
-@app.exception_handler(JusMonitorException)
-async def jusmonitor_exception_handler(
+@app.exception_handler(JusMonitorIAException)
+async def jusmonitoria_exception_handler(
     request: Request,
-    exc: JusMonitorException
+    exc: JusMonitorIAException
 ):
     """Handle custom exceptions"""
     
@@ -3786,7 +3786,7 @@ class ProcessCreate(BaseModel):
 
 ### Dual Testing Approach
 
-The JusMonitor system requires both unit tests and property-based tests for comprehensive coverage:
+The JusMonitorIA system requires both unit tests and property-based tests for comprehensive coverage:
 
 **Unit Tests** focus on:
 - Specific examples and edge cases
@@ -3811,7 +3811,7 @@ Together, these approaches provide complementary coverage: unit tests catch conc
 **Configuration:**
 - Minimum 100 iterations per property test (due to randomization)
 - Each property test must reference its design document property
-- Tag format: `# Feature: jusmonitor-crm-orquestrador, Property {number}: {property_text}`
+- Tag format: `# Feature: jusmonitoria-crm-orquestrador, Property {number}: {property_text}`
 
 **Example Property Test:**
 
@@ -3819,7 +3819,7 @@ Together, these approaches provide complementary coverage: unit tests catch conc
 from hypothesis import given, strategies as st
 import pytest
 
-# Feature: jusmonitor-crm-orquestrador, Property 3: Lead Score Bounds
+# Feature: jusmonitoria-crm-orquestrador, Property 3: Lead Score Bounds
 @given(
     message=st.text(min_size=10, max_size=500),
     contact_info=st.fixed_dictionaries({
@@ -3839,7 +3839,7 @@ async def test_lead_score_bounds(message, contact_info, triagem_agent):
     assert isinstance(result['score'], int)
     assert 0 <= result['score'] <= 100
 
-# Feature: jusmonitor-crm-orquestrador, Property 5: Movement Parser Round-Trip
+# Feature: jusmonitoria-crm-orquestrador, Property 5: Movement Parser Round-Trip
 @given(
     movement=st.builds(
         Movement,
@@ -3861,7 +3861,7 @@ def test_movement_parser_round_trip(movement, parser):
     assert parsed.type == movement.type
     assert parsed.description == movement.description
 
-# Feature: jusmonitor-crm-orquestrador, Property 9: Tenant Isolation in Queries
+# Feature: jusmonitoria-crm-orquestrador, Property 9: Tenant Isolation in Queries
 @given(
     tenant_id=st.uuids(),
     other_tenant_id=st.uuids().filter(lambda x: x != tenant_id),
@@ -3892,7 +3892,7 @@ async def test_tenant_isolation(
     # Should not find client from other tenant
     assert result is None
 
-# Feature: jusmonitor-crm-orquestrador, Property 27: API Key Encryption Round-Trip
+# Feature: jusmonitoria-crm-orquestrador, Property 27: API Key Encryption Round-Trip
 @given(api_key=st.text(min_size=20, max_size=100))
 @pytest.mark.property_test
 def test_api_key_encryption_round_trip(api_key, encryption_service):
@@ -4320,7 +4320,7 @@ pytest --hypothesis-profile=ci
 
 ## Conclusion
 
-This design document provides a comprehensive technical blueprint for the JusMonitor CRM Orquestrador. The architecture emphasizes:
+This design document provides a comprehensive technical blueprint for the JusMonitorIA CRM Orquestrador. The architecture emphasizes:
 
 - **Multi-tenancy**: Complete data isolation at application and database levels
 - **Scalability**: Horizontal scaling with Docker, connection pooling, and caching

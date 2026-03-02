@@ -1,0 +1,74 @@
+[
+  {
+    "formato": "CPF puro",
+    "idConsultante": "07071649316",
+    "sucesso": false,
+    "mensagem": "Falha na autenticação.",
+    "latencia_ms": 161,
+    "tem_processo": false
+  },
+  {
+    "formato": "CPF com senha vazia",
+    "idConsultante": "07071649316",
+    "sucesso": false,
+    "mensagem": "Falha na autenticação.",
+    "latencia_ms": 50,
+    "tem_processo": false
+  },
+  {
+    "formato": "CPF com senha=cpf",
+    "idConsultante": "07071649316",
+    "sucesso": false,
+    "mensagem": "Falha de autenticação",
+    "latencia_ms": 68,
+    "tem_processo": false
+  },
+  {
+    "formato": "OAB UF+numero",
+    "idConsultante": "CE50784",
+    "sucesso": false,
+    "mensagem": "Falha na autenticação.",
+    "latencia_ms": 47,
+    "tem_processo": false
+  },
+  {
+    "formato": "OAB formato CE50784",
+    "idConsultante": "CE50784",
+    "sucesso": false,
+    "mensagem": "Falha na autenticação.",
+    "latencia_ms": 40,
+    "tem_processo": false
+  },
+  {
+    "formato": "OAB numero puro",
+    "idConsultante": "50784",
+    "sucesso": false,
+    "mensagem": "Falha na autenticação.",
+    "latencia_ms": 48,
+    "tem_processo": false
+  },
+  {
+    "formato": "String vazia",
+    "idConsultante": "",
+    "sucesso": false,
+    "mensagem": "Falha na autenticação.",
+    "latencia_ms": 42,
+    "tem_processo": false
+  },
+  {
+    "formato": "Zeros 11 digitos",
+    "idConsultante": "00000000000",
+    "sucesso": false,
+    "mensagem": "Falha na autenticação.",
+    "latencia_ms": 46,
+    "tem_processo": false
+  },
+  {
+    "formato": "CPF formatado",
+    "idConsultante": "070.716.493-16",
+    "sucesso": false,
+    "mensagem": "Falha na autenticação.",
+    "latencia_ms": 47,
+    "tem_processo": false
+  }
+]

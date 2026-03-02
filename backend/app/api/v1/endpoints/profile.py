@@ -33,6 +33,12 @@ def _build_profile_response(user: User) -> ProfileResponse:
             num = f"{num[:-3]}.{num[-3:]}"
         oab_formatted = f"OAB/{user.oab_state} {num}"
 
+    cpf_formatted = None
+    if user.cpf:
+        d = user.cpf
+        if len(d) == 11:
+            cpf_formatted = f"{d[:3]}.{d[3:6]}.{d[6:9]}-{d[9:]}"
+
     return ProfileResponse(
         user_id=str(user.id),
         email=user.email,
@@ -44,6 +50,8 @@ def _build_profile_response(user: User) -> ProfileResponse:
         oab_number=user.oab_number,
         oab_state=user.oab_state,
         oab_formatted=oab_formatted,
+        cpf=user.cpf,
+        cpf_formatted=cpf_formatted,
     )
 
 

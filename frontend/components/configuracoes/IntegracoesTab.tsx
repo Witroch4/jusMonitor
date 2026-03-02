@@ -122,7 +122,7 @@ export function IntegracoesTab() {
                 </h3>
                 <p className="text-sm text-muted-foreground mt-1">
                   Fonte de verdade para chats com clientes via WhatsApp e Instagram DM.
-                  Integração gerenciada pela equipe JusMonitor.
+                  Integração gerenciada pela equipe JusMonitorIA.
                 </p>
                 <a
                   href="https://chatwit.witdev.com.br"

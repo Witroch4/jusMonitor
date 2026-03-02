@@ -1,6 +1,6 @@
 # Database Optimization Guide
 
-This document describes the database optimizations implemented for the JusMonitor CRM system to improve query performance and reduce latency.
+This document describes the database optimizations implemented for the JusMonitorIA CRM system to improve query performance and reduce latency.
 
 ## Overview
 

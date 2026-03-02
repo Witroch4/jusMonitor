@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     cors_origins: list[str] = [
         "http://localhost:3000",
         "http://localhost:3001",
-        "https://jusmonitoria.witdev.com.br",
+        "https://jusmonitoriaia.witdev.com.br",
     ]
     cors_allow_credentials: bool = True
     cors_max_age: int = 600  # 10 minutes
@@ -72,7 +72,7 @@ class Settings(BaseSettings):
     # Instagram OAuth
     instagram_app_id: str = "1543909259581320"
     instagram_app_secret: str = ""
-    instagram_callback_url: str = "https://jusmonitoria.witdev.com.br/auth/instagram/callback"
+    instagram_callback_url: str = "https://jusmonitoriaia.witdev.com.br/auth/instagram/callback"
 
     # Chatwit
     chatwit_api_url: str = "https://api.chatwit.com/v1"

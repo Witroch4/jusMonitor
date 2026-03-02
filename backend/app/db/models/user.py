@@ -84,7 +84,13 @@ class User(TenantBaseModel):
         nullable=True,
         comment="OAB state (2-letter code, e.g. SP, RJ)",
     )
-    
+
+    cpf: Mapped[Optional[str]] = mapped_column(
+        String(14),
+        nullable=True,
+        comment="User CPF (digits only, stored as 11 digits)",
+    )
+
     # Authorization
     role: Mapped[UserRole] = mapped_column(
         Enum(UserRole, name="user_role", native_enum=False),

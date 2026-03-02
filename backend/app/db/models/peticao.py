@@ -117,6 +117,12 @@ class Peticao(TenantBaseModel):
         Text, nullable=True,
     )
 
+    # MNI 2.2.2 dados básicos (polo[], orgaoJulgador, assuntos[], etc.)
+    dados_basicos_json: Mapped[Optional[dict]] = mapped_column(
+        JSONB, nullable=True,
+        comment="Estrutura MNI 2.2.2: polos, orgaoJulgador, assuntos, classeProcessual, etc.",
+    )
+
     # AI analysis result
     analise_ia: Mapped[Optional[dict]] = mapped_column(
         JSONB, nullable=True,
@@ -179,6 +185,13 @@ class PeticaoDocumento(TenantBaseModel):
     hash_sha256: Mapped[str] = mapped_column(
         String(64), nullable=False,
         comment="SHA-256 hash of original PDF bytes",
+    )
+
+    # Secrecy flags
+    sigiloso: Mapped[bool] = mapped_column(
+        default=False,
+        nullable=False,
+        comment="Documento marcado como sigiloso pelo usuário",
     )
 
     # Validation status

@@ -1,7 +1,7 @@
 # Task 12 Implementation Summary: CRM - Prontuário 360º
 
 ## Overview
-Successfully implemented the complete CRM 360º Profile feature for the JusMonitor system, including client management API, timeline aggregation, health dashboard, automation controls, and internal notes system.
+Successfully implemented the complete CRM 360º Profile feature for the JusMonitorIA system, including client management API, timeline aggregation, health dashboard, automation controls, and internal notes system.
 
 ## Implemented Components
 

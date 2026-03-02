@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# JusMonitor - Script de Seed
+# JusMonitorIA - Script de Seed
 # Popula o banco de dados com dados de demonstração
 
 set -e
@@ -55,7 +55,7 @@ if ! docker-compose ps postgres | grep -q "Up"; then
     
     # Aguardar PostgreSQL estar pronto
     print_info "Aguardando PostgreSQL inicializar..."
-    until docker-compose exec -T postgres pg_isready -U jusmonitor &>/dev/null; do
+    until docker-compose exec -T postgres pg_isready -U jusmonitoria &>/dev/null; do
         echo -n "."
         sleep 1
     done

@@ -206,6 +206,8 @@ export interface UserProfile {
   oab_number?: string
   oab_state?: string
   oab_formatted?: string
+  cpf?: string
+  cpf_formatted?: string
 }
 
 export interface UpdateProfileData {
@@ -213,6 +215,7 @@ export interface UpdateProfileData {
   phone?: string
   oab_number?: string
   oab_state?: string
+  cpf?: string
 }
 
 export interface ChangePasswordData {

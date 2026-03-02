@@ -5,7 +5,7 @@ se for solicitado pra navehgar use sempre MCP Tool:
 playwright / browser_navigate porta da aplicação 3001 e NÇAO 3000
 ## Project Overview
 
-JusMonitor is a multi-tenant legal case management and AI-powered automation platform for law firms. The UI and docs are in Portuguese. It has a FastAPI backend and Next.js frontend, orchestrated with Docker Compose.
+JusMonitorIA is a multi-tenant legal case management and AI-powered automation platform for law firms. The UI and docs are in Portuguese. It has a FastAPI backend and Next.js frontend, orchestrated with Docker Compose.
 
 ## Architecture
 

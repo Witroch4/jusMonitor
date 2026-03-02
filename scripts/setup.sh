@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# JusMonitor Setup Script
+# JusMonitorIA Setup Script
 # This script helps set up the development environment
 
 set -e
 
-echo "🚀 JusMonitor Setup Script"
+echo "🚀 JusMonitorIA Setup Script"
 echo "=========================="
 echo ""
 

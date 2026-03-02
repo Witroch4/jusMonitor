@@ -4,14 +4,13 @@ import asyncio
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 import bcrypt
-if not hasattr(bcrypt, "__about__"):
-    bcrypt.__about__ = type("about", (), {"__version__": getattr(bcrypt, "__version__", "4.0.1")})
-from passlib.context import CryptContext
 
 from app.db.models.tenant import Tenant
 from app.db.models.user import User, UserRole
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 # Demo tenant ID (fixed for consistency across seeds)
@@ -74,18 +73,21 @@ async def seed_users(session: AsyncSession, tenant_id: UUID) -> list[User]:
         {
             "email": "amandasousa22.adv@gmail.com",
             "password": "amandaesquecida@123ABC",
-            "full_name": "Amanda Sousa",
+            "full_name": "Amanda Alves de Sousa",
             "role": UserRole.ADMIN,
+            "oab_number": "50784",
+            "oab_state": "CE",
+            "cpf": "07071649316",
         },
         {
             "email": "carlos@demolawfirm.com",
-            "password": "lawyer123",
+            "password": "amandaesquecida@123ABC",
             "full_name": "Carlos Advogado",
             "role": UserRole.LAWYER,
         },
         {
             "email": "marcos@demolawfirm.com",
-            "password": "assistant123",
+            "password": "amandaesquecida@123ABC",
             "full_name": "Marcos Assistente",
             "role": UserRole.ASSISTANT,
         },
@@ -110,7 +112,7 @@ async def seed_users(session: AsyncSession, tenant_id: UUID) -> list[User]:
 
         user = User(
             tenant_id=tenant_id,
-            password_hash=pwd_context.hash(password),
+            password_hash=hash_password(password),
             is_active=True,
             email_verified=True,
             **user_data

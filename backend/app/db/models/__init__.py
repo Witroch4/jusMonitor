@@ -34,6 +34,8 @@ from app.db.models.peticao import (
     TipoDocumento,
     TipoPeticao,
 )
+from app.db.models.tpu import TpuClasse, TpuAssunto
+from app.db.models.processo_monitorado import ProcessoMonitorado
 
 __all__ = [
     "Tenant",
@@ -71,4 +73,7 @@ __all__ = [
     "TipoPeticao",
     "TipoDocumento",
     "DocumentoStatus",
+    "TpuClasse",
+    "TpuAssunto",
+    "ProcessoMonitorado",
 ]

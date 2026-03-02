@@ -1,1 +1,1 @@
-"""CLI commands for JusMonitor."""
+"""CLI commands for JusMonitorIA."""

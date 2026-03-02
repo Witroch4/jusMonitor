@@ -1,0 +1,173 @@
+# Padrão MNI 2.2.2 - Fonte da Verdade: Consulta e Cadastro de Processos
+
+Este documento consolida as especificações técnicas baseadas estritamente nos arquivos XSD e WSDL oficiais do Modelo Nacional de Interoperabilidade (MNI) versão 2.2.2 do Conselho Nacional de Justiça (CNJ), com foco principal nas operações de **Consulta de Processo** (`consultarProcesso`) e **Cadastro de Processo / Protocolo de Petição** (`entregarManifestacaoProcessual`).
+
+---
+
+## 1. Visão Geral das Operações
+
+O WSDL (`servico-intercomunicacao-2.2.2.wsdl`) do MNI define o seguinte contrato (SOAP) pertinente ao ciclo de vida de cadastro e acompanhamento processual:
+
+- **consultarProcesso**: Permite obter os dados completos de um processo (cabeçalho, partes, movimentos e documentos), de acordo com os níveis de sigilo.
+- **entregarManifestacaoProcessual**: Permite o envio ("cadastro") de petições iniciais (novo processo) e interlocutórias/incidentais (processo já existente), bem como recursos e manifestações gerais.
+
+### 1.1 Autenticação Base (Aplica-se a todos os endpoints)
+Na estrutura do XSD `tipos-servico`, os campos `idConsultante`/`idManifestante` e `senhaConsultante`/`senhaManifestante` estão presentes nos métodos. Porém, o XSD define que a comunicação se dá preferencialmente por **canal seguro com autenticação de certificado cliente** (mTLS usando e-CNPJ ou e-CPF do advogado/ente). Havendo autenticação por certificado cliente (mTLS), os parâmetros de `id` e `senha` são ignorados no XSD.
+
+---
+
+## 2. Consulta de Processo (`consultarProcesso`)
+
+Elemento do tipo `tipoConsultarProcesso` no namespace `http://www.cnj.jus.br/tipos-servico-intercomunicacao-2.2.2`.
+
+### 2.1 Requisição de Consulta (Input)
+
+| Campo | Tipo XSD | Obrigatório | Descrição (Regra de Negócio) |
+| :--- | :--- | :---: | :--- |
+| `idConsultante` | `string` | Sim | CPF/CNPJ ou RIC do usuário da consulta (dispensável na prática se mTLS for usado em alguns tribunais, mas exigido estruturalmente pelo XSD se o certificado não substituir). |
+| `senhaConsultante` | `string` | Sim | Senha (dispensável por mTLS mas estruturalmente obrigatória se não houver mTLS). |
+| `numeroProcesso` | `tipoNumeroUnico` | Sim | Número do processo a ser consultado. Restrição `\d{20}` (sem pontuação). |
+| `dataReferencia` | `tipoDataHora` | Não | Parâmetro ('AAAAMMDDHHMMSS') para filtrar apenas movimentos/documentos mais novos do que esta data. |
+| `movimentos` | `boolean` | Não | Indica se deseja o retorno dos andamentos/movimentos do processo. |
+| `<choice>` | - | Não | É possível escolher UM de três cenários de escopo extra (elementos mutually exclusive abaixo): |
+| `-> incluirCabecalho` | `boolean` | (Choice) | Indica se quer retornar a estrutura de `dadosBasicos` do processo. |
+| `-> incluirDocumentos` | `boolean` | (Choice) | Se preenchido como true, solicita o retorno de **todos** os documentos ou a partir da `dataReferencia`. |
+| `-> documento` | `string` (Lista) | (Choice) | Identificadores (`idDocumento`) dos documentos específicos que quer baixar. Se for arquivo de comunicação pendente, pode vir encriptado pelo tribunal usando SHA-1. |
+
+### 2.2 Resposta da Consulta (Output)
+
+A operação retorna o objeto de domínio central `tipoConsultarProcessoResposta`.
+
+| Campo | Tipo XSD | Obrigatório | Descrição |
+| :--- | :--- | :---: | :--- |
+| `sucesso` | `boolean` | Sim | Indica o sucesso da consulta. |
+| `mensagem` | `string` | Sim | Resumo textual/status da operação. |
+| `processo` | `tipoProcessoJudicial`| Não | Nó contendo a íntegra processual retornada (ausente em caso de falha/inexistência). |
+
+---
+
+## 3. Cadastro de Processo e Petição (`entregarManifestacaoProcessual`)
+
+Elemento do tipo `tipoEntregarManifestacaoProcessual`. É usado tanto para distribuir uma Inicial (Cadastro de novo Processo) quanto protocolar incidentais.
+
+### 3.1 Requisição de Entrega/Cadastro (Input)
+
+| Campo | Tipo XSD | Obrigatório | Descrição (Regra de Negócio) |
+| :--- | :--- | :---: | :--- |
+| `idManifestante` | `string` | Não | CPF/CNPJ do Advogado assinante. Ignorado se mTLS autenticar cliente. |
+| `senhaManifestante`| `string` | Não | Senha. Ignorada se mTLS. |
+| `<choice>` | - | Sim | DEVE-SE ESCOLHER UM DOS DOIS (Processo Existente vs Processo Novo / Inicial). |
+| `-> numeroProcesso`| `tipoNumeroUnico` | (Choice) | (Para envio incidental): Número completo (20 dígitos). |
+| `-> dadosBasicos` | `tipoCabecalhoProcesso`| (Choice) | (Para Inicial): Toda a estrutura de distribuição (competência, polos, etc). O atributo `numero` deve ser o correspondente a um placeholder ou envio origem (`00000000000000000000`). |
+| `documento` | `tipoDocumento` (Lista)| Sim | XML do(s) documento(s). Para inicial, ao menos um documento precisa do identificador ou tipo 'INICIAL'. O arquivo em si (PDF) vai gravado em base64. |
+| `dataEnvio` | `tipoDataHora` | Sim | Timestamp formato `AAAAMMDDHHMMSS`. |
+| `parametros` | `tipoParametro` (Lista)| Não | Tuplas Chave-Valor passadas ao tribunal para configurações ou re-distribuições (ex: quando retorna lista de competências possíveis). |
+
+### 3.2 Resposta da Entrega/Cadastro (Output)
+
+Objeto `tipoEntregarManifestacaoProcessualResposta`.
+
+| Campo | Tipo XSD | Descrição |
+| :--- | :--- | :--- |
+| `sucesso` | `boolean` | Transação registrada (T/F). |
+| `mensagem` | `string` | Recibo detalhado textual. |
+| `protocoloRecebimento` | `string` | Número único que comprova o protocolo junto à corte. (Obrigatório). |
+| `dataOperacao` | `tipoDataHora`| Convalidação do carimbo de tempo da efetivação no servidor do TJ. |
+| `recibo` | `base64Binary`| Opcional/Se Sucesso: PDF do recibo gerado e assinado originariamente pelo tribunal. |
+| `parametro` | `tipoParametro` | Listas de parâmetros de distribuição exigidos (usados na devolução de erro quando o MNI aborta por não saber a jurisdição - `competencia` ou classe). |
+
+---
+
+## 4. Tipos e Entidades do Domínio de Dados (Intercomunicacao-2.2.2.xsd)
+
+Estas entidades são a base para o formato de mensagens tanto no cadastro quanto no retorno das consultas de processo.
+
+### 4.1 Processo Judicial (`tipoProcessoJudicial`)
+A Raiz de um processo retornado. 
+
+| Campo | Tipo XSD | Regra |
+| :--- | :--- | :--- |
+| `dadosBasicos` | `tipoCabecalhoProcesso`| Sim. A Capa (Obrigatória na visualização ou autuação). |
+| `movimento` | `tipoMovimentoProcessual`| Lista opcional contendo o andamento/linha do tempo. |
+| `documento` | `tipoDocumento` | Lista opcional com os autos digitalizados (PDFs, mimetypes binários contidos). |
+
+---
+
+### 4.2 Cabeçalho / Capa (`tipoCabecalhoProcesso`)
+(Fundamental para se preencher em petições iniciais no `<choice>` "dadosBasicos"). 
+
+**Atributos XML `attribute`**:
+- `numero` (`tipoNumeroUnico` - *required*): Em iniciais usa-se `00000000000000000000` na submissão, na consulta retorna o NPU 20 dígitos `\d{20}`.
+- `competencia` (`int` - *optional*): ID de competência da distribuição.
+- `classeProcessual` (`int` - *required*): Código de Classe processual do CNJ (Resolução 46).
+- `codigoLocalidade` (`string` - *required*): Código originário da vara/fórum para fins de distribuição da inicial.
+- `nivelSigilo` (`int` - *required*): Escala de de 0 a 5. (0 = Público, 1 = Segredo de Justiça / Partes, até 5).
+- `intervencaoMP` (`boolean` - *optional*): Booleano marcando obrigação de vista fiscal.
+- `tamanhoProcesso` (`int` - *optional*): Tamanho físico bytes do somatório dos anexos.
+- `dataAjuizamento` (`tipoDataHora` - *optional*): Momento oficial no sistema judicial.
+
+**Elementos Filhos `<sequence>`**:
+1. `polo` (`tipoPoloProcessual`): Obrigatório (Array). Polos Ativo/Passivo da ação.
+2. `assunto` (`tipoAssuntoProcessual`): Obrigatório (Array). Assuntos cadastrados (TNU-CNJ Res 46).
+3. `magistradoAtuante` (`tipoCadastroIdentificador`): Opcional. CPF do juiz.
+4. `processoVinculado` (`tipoVinculacaoProcessual`): Opcional.
+5. `prioridade` (`string`): Opcional (Array). Textos convencionados ("IDOSO", "RÉU PRESO", "MENOR").
+6. `outroParametro` (`tipoParametro`): Opcional.
+7. `valorCausa` (`double`): Opcional. Valor da causa financeira.
+8. `orgaoJulgador` (`tipoOrgaoJulgador`): Obrigatório. Local da judicatura atual.
+9. `outrosnumeros` (`string`): Opcional (Array). Histórico numérico antigo.
+
+---
+
+### 4.3 Elemento Documento (`tipoDocumento`)
+O objeto arquivo (usado nas consultas e na injeção de Petição).
+
+**Atributos XML `attribute`**:
+- `idDocumento` / `idDocumentoVinculado` (`string`)
+- `tipoDocumento` (`string` - *required*): O Código Nacional do documento (Res 46) p/ classificar na árvore PJe/Eproc. Ex: Certidão, Procuração. (É string porque aceita os tokens identificadores). "INICIAL" para primários do cadastro.
+- `dataHora` (`tipoDataHora`)
+- `mimetype` (`string`)
+- `nivelSigilo` (`int` - *ex: 0*)
+- `movimento` (`int` - vinculo ao ID do andamento)
+- `hash` (`string` - hash SHA-256 do arquivo se houver conferência)
+- `descricao` e `tipoDocumentoLocal` (`string`)
+
+**Elementos Filhos `<sequence>`**:
+1. `conteudo` (`base64Binary`, *application/octet-stream*): **Aqui reside o PDF do processo codificado em base64**.
+2. `assinatura` (`tipoAssinatura`): O banco public key caso de encriptação XMLDSig. 
+3. `outroParametro` (`tipoParametro`)
+4. Ponto de extensão XSD `##other`.
+5. `documentoVinculado` (Sub-nós de anexos contidos - ex: Cópia Doc em petição mãe).
+
+---
+
+### 4.4 Pólo Processual e Partes (`tipoPoloProcessual` | `tipoParte` | `tipoPessoa`)
+Quando é enviada uma inicial (`dadosBasicos`), o `polo` deve indicar a sua modalidade:
+
+> Atributo Enum `polo` (`modalidadePoloProcessual`): 
+> AT: polo ativo, PA: polo passivo, TC: terceiro, FL: fiscal lei, TJ: testemunha do juiz, AD: assistente civil, VI: vítima.
+
+**O Elemento `tipoParte` contém:**
+1. `<choice>` entre `<pessoa>` (`tipoPessoa`) ou `<interessePublico>` (`string`). A parte pode ser algo abstrato do MP ou uma Entidade qualificada.
+2. `advogado` (`tipoRepresentanteProcessual`, Array Opcional): Lista os advogados/defensorias. 
+3. `assistenciaJudiciaria` (booleano - *atributo*): Parte pediu tutela AJG gratuita.
+
+**O Nó Individual de Qualificação: `tipoPessoa`**:
+> Atributos: `nome`, `sexo` (`M/F/D/U`), `nomeGenitor`, `nomeGenitora`, `dataNascimento`, `dataObito`, `numeroDocumentoPrincipal` (`11` ou `14` digits numéricos - obrigatório qd. possível), `tipoPessoa` (fisica | juridica | autoridade | orgaorepresentacao), `nacionalidade`.
+
+> Filhos: `outroNome`, `documento` (RG, Passaporte, lista de tipos), `endereco` (Estruturado CEP, rua, bairro), `pessoaRelacionada` etc.
+
+---
+
+### 4.5 Assunto do Processo (`tipoAssuntoProcessual`)
+- Pode ser a tag `<codigoNacional>` referenciando o `int` da TNU do CNJ.
+- Ou pode ser `<assuntoLocal>` para taxionomias exclusivas do Tribunal, contendo ID pai.
+- Atributo `principal=true/false` demarca a Tese Central (Súmula Vinculante / Recurso repetitivo, principal mérito de Distribuição).
+
+---
+
+### Resumo do Fluxo XSD vs Código
+Seu robô MNI, no código-fonte Python/Zeep, obedecerá cegamente a esta taxionomia:
+1. Ao enviar petição interlocutória: A operação usa o `<choice>` de enviar `numeroProcesso` como `\d{20}`. Preenche lista `<documento>`.
+2. Ao enviar inicial: Substitui `numeroProcesso` por `dadosBasicos`. Povoa os campos `polo`, `orgaoJulgador`, `classeProcessual` exigidos no `<tipoCabecalho>`. Ao final o MNI devolve `tipoEntregarManifestacaoProcessualResposta` com PDF (`recibo`) em Base64, assinando o ingresso da causa.
+3. Ao baixar andamentos: Consome `consultarProcesso`, envia os filtros baseados em DataHora e opt-ins booleanos (`movimentos=True`, `incluirCabecalho=True`, `incluirDocumentos=False`), mastigando a arvore `tipoProcessoJudicial` devolvida.

@@ -154,3 +154,9 @@ def _register_default_tasks() -> None:
         register_task("embeddings_batch", batch_generate_embeddings_for_tenant)
     except ImportError:
         logger.warning("Could not import embeddings task")
+
+    try:
+        from app.workers.tasks.tpu_sync import sync_tpu_from_cnj
+        register_task("tpu_sync_weekly", sync_tpu_from_cnj)
+    except ImportError:
+        logger.warning("Could not import tpu_sync task")

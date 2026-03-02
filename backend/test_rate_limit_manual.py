@@ -29,7 +29,7 @@ async def test_redis_connection():
         for i in range(limit + 2):
             current_time = int(time.time())
             current_window = current_time // 60
-            key = f"jusmonitor:ratelimit:{client_id}:{current_window}"
+            key = f"jusmonitoria:ratelimit:{client_id}:{current_window}"
             
             count = await r.incr(key)
             
@@ -43,7 +43,7 @@ async def test_redis_connection():
                 print(f"  Request {i+1}: ALLOWED (count={count}/{limit})")
         
         # Clean up
-        await r.delete(f"jusmonitor:ratelimit:{client_id}:{current_window}")
+        await r.delete(f"jusmonitoria:ratelimit:{client_id}:{current_window}")
         await r.close()
         
         print("\n✓ Rate limiting logic works correctly")

@@ -19,6 +19,7 @@ from app.db.repositories.peticao import (
     PeticaoRepository,
 )
 from app.schemas.peticao import (
+    ConsultarProcessoRequest,
     PeticaoCreate,
     PeticaoDocumentoResponse,
     PeticaoEventoResponse,
@@ -147,6 +148,14 @@ async def update_peticao(
     if not update_data:
         return PeticaoResponse.model_validate(pet)
 
+    # Serialize dados_basicos Pydantic model to JSON dict for JSONB column
+    if "dados_basicos" in update_data and update_data["dados_basicos"] is not None:
+        update_data["dados_basicos_json"] = update_data.pop("dados_basicos")
+        if hasattr(update_data["dados_basicos_json"], "model_dump"):
+            update_data["dados_basicos_json"] = update_data["dados_basicos_json"].model_dump(mode="json")
+    elif "dados_basicos" in update_data:
+        update_data.pop("dados_basicos")
+
     updated = await repo.update(peticao_id, **update_data)
     await session.commit()
 
@@ -201,6 +210,7 @@ async def upload_documento(
     arquivo: UploadFile = File(..., description="Arquivo PDF"),
     tipo_documento: TipoDocumento = Form(...),
     ordem: int = Form(1, ge=1),
+    sigiloso: bool = Form(False),
     tenant_id: UUID = Depends(get_current_tenant_id),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
@@ -250,6 +260,7 @@ async def upload_documento(
             tipo_documento=tipo_documento,
             ordem=ordem,
             crypto=crypto,
+            sigiloso=sigiloso,
         )
     except ValueError as e:
         raise HTTPException(
@@ -332,6 +343,72 @@ async def list_eventos(
     evento_repo = PeticaoEventoRepository(session, tenant_id)
     eventos = await evento_repo.list_by_peticao(peticao_id)
     return [PeticaoEventoResponse.model_validate(e) for e in eventos]
+
+
+# --- Consultar Processo (MNI read-only) ---
+
+
+@router.post("/consultar-processo")
+async def consultar_processo(
+    data: ConsultarProcessoRequest,
+    tenant_id: UUID = Depends(get_current_tenant_id),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Consult a process via MNI 2.2.2 consultarProcesso.
+
+    This is a READ-ONLY operation — no petition is filed, no data is modified.
+    Returns process header, parties (polos), movements, and judging body.
+    Requires a valid A1 certificate with mTLS.
+    """
+    import asyncio
+
+    from app.api.v1.endpoints.tribunais import get_tribunal_config
+    from app.core.services.peticoes.mni_client import MniSoapClient
+    from app.db.repositories.certificado_digital import CertificadoDigitalRepository
+
+    # Load certificate
+    cert_repo = CertificadoDigitalRepository(session, tenant_id)
+    cert = await cert_repo.get(data.certificado_id)
+    if cert is None or cert.revogado:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Certificado não encontrado ou revogado",
+        )
+
+    # Resolve tribunal WSDL
+    tribunal = get_tribunal_config(data.tribunal_id)
+    if tribunal is None or not tribunal.get("wsdlEndpoint"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Tribunal '{data.tribunal_id}' sem endpoint WSDL configurado",
+        )
+
+    crypto = _get_crypto_service()
+    mni = MniSoapClient(crypto)
+
+    cpf = cert.titular_cpf_cnpj.replace(".", "").replace("-", "").replace("/", "")
+
+    result = await asyncio.to_thread(
+        mni.consultar_processo,
+        wsdl_url=tribunal["wsdlEndpoint"],
+        pfx_encrypted=cert.pfx_encrypted,
+        pfx_password_encrypted=cert.pfx_password_encrypted,
+        numero_processo=data.numero_processo,
+        id_consultante=cpf,
+    )
+
+    logger.info(
+        "consultarProcesso called",
+        extra={
+            "processo": data.numero_processo,
+            "tribunal": data.tribunal_id,
+            "sucesso": result.get("sucesso"),
+        },
+    )
+
+    return result
 
 
 # --- Filing (Phase 2C) ---

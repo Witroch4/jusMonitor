@@ -61,6 +61,13 @@ const perfilSchema = z.object({
       { message: 'Número OAB: apenas dígitos (máx. 7)' }
     ),
   oab_state: z.string().optional(),
+  cpf: z
+    .string()
+    .optional()
+    .refine(
+      (v) => !v || /^\d{11}$/.test(v.replace(/\D/g, '')),
+      { message: 'CPF inválido' }
+    ),
 })
 
 type PerfilFormValues = z.infer<typeof perfilSchema>
@@ -78,6 +85,7 @@ export function PerfilTab() {
       phone: profile?.phone || '',
       oab_number: profile?.oab_number || '',
       oab_state: profile?.oab_state || '',
+      cpf: profile?.cpf || '',
     },
   })
 
@@ -88,6 +96,7 @@ export function PerfilTab() {
         phone: data.phone || undefined,
         oab_number: data.oab_number || undefined,
         oab_state: data.oab_state || undefined,
+        cpf: data.cpf ? data.cpf.replace(/\D/g, '') : undefined,
       })
     } catch {
       // Error handled by React Query
@@ -296,16 +305,48 @@ export function PerfilTab() {
                   </FormItem>
                 )}
               />
+
+              <div className="md:col-span-2">
+                <FormField
+                  control={form.control}
+                  name="cpf"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        CPF
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder="000.000.000-00"
+                          className="border-border/60 bg-white dark:bg-muted/20 shadow-sm focus-visible:ring-primary/20 rounded-lg text-foreground font-medium font-mono"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </div>
 
-            {profile?.oab_formatted && (
-              <div className="mt-5 flex items-center gap-2">
-                <Badge
-                  variant="outline"
-                  className="text-sm font-mono px-3 py-1 border-primary/30 text-primary"
-                >
-                  {profile.oab_formatted}
-                </Badge>
+            {(profile?.oab_formatted || profile?.cpf_formatted) && (
+              <div className="mt-5 flex items-center gap-3 flex-wrap">
+                {profile.oab_formatted && (
+                  <Badge
+                    variant="outline"
+                    className="text-sm font-mono px-3 py-1 border-primary/30 text-primary"
+                  >
+                    {profile.oab_formatted}
+                  </Badge>
+                )}
+                {profile.cpf_formatted && (
+                  <Badge
+                    variant="outline"
+                    className="text-sm font-mono px-3 py-1 border-primary/30 text-primary"
+                  >
+                    CPF: {profile.cpf_formatted}
+                  </Badge>
+                )}
                 <span className="text-xs text-muted-foreground">
                   Formato atual registrado
                 </span>

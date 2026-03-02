@@ -59,7 +59,7 @@ result_backend = RedisAsyncResultBackend(
 broker = ListQueueBroker(
     url=str(settings.redis_url),
     max_connection_pool_size=settings.redis_max_connections,
-    queue_name="jusmonitor:tasks",
+    queue_name="jusmonitoria:tasks",
 ).with_result_backend(result_backend)
 
 # Add logging middleware

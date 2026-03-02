@@ -2,7 +2,7 @@
 **Project ID:** 538325528689641160
 
 ## 1. Visual Theme & Atmosphere
-The aesthetic philosophy of JusMonitor is a "Minimalist Legal Dashboard Variant." It features an elegant, luxurious, and highly authoritative atmosphere. The density is airy but structured, relying on a sophisticated split between a dominant dark mode and a crisp light mode. It leans heavily on premium visual cues—subtle golds against deep charcoal or stark white—to convey trust, precision, and high-end legal service. The mood is serious, focused, and undeniably premium.
+The aesthetic philosophy of JusMonitorIA is a "Minimalist Legal Dashboard Variant." It features an elegant, luxurious, and highly authoritative atmosphere. The density is airy but structured, relying on a sophisticated split between a dominant dark mode and a crisp light mode. It leans heavily on premium visual cues—subtle golds against deep charcoal or stark white—to convey trust, precision, and high-end legal service. The mood is serious, focused, and undeniably premium.
 
 ## 2. Color Palette & Roles
 * **Premium Gold (Primary Action):** `#D4AF37` for dark mode / `#B89650` for light mode. Used as the primary accent color for active navigation items, key metrics, icons, and primary actions. Instills a sense of luxury and authority.

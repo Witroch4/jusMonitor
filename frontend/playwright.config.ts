@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 /**
- * Configuração do Playwright para testes E2E do JusMonitor
+ * Configuração do Playwright para testes E2E do JusMonitorIA
  * 
  * @see https://playwright.dev/docs/test-configuration
  */

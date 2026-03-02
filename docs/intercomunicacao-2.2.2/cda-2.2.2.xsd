@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema 
+	targetNamespace="http://www.cnj.jus.br/mni/cda" 
+	elementFormDefault="qualified" 
+	xmlns="http://www.w3.org/2001/XMLSchema" 
+	xmlns:cda="http://www.cnj.jus.br/mni/cda" 
+	xmlns:xmime="http://www.w3.org/2005/05/xmlmime">
+    
+	<import schemaLocation="intercomunicacao-2.2.2.xsd" namespace="http://www.cnj.jus.br/intercomunicacao-2.2.2" />
+
+	<element name="tipoDividaAtiva">
+		<complexType>
+			<sequence>
+				<element name="certidao" type="cda:tipoCertidao" maxOccurs="unbounded" minOccurs="1" />
+			</sequence>
+		</complexType>
+	</element>
+
+	<complexType name="tipoCertidao">
+		<sequence>
+			<element name="devedorPrincipal" type="cda:tipoDevedorPrincipal" maxOccurs="unbounded" minOccurs="1"></element>
+			<element name="devedorAlternativo" type="cda:tipoDevedorAlternativo" maxOccurs="unbounded" minOccurs="0"></element>
+			<element name="valor" type="cda:valorDivida" minOccurs="1" maxOccurs="unbounded"></element>
+		</sequence>
+	</complexType>
+	
+	<complexType name="valorDivida">
+		<attribute name="valor" type="string" use="required" />
+		<attribute name="dataApuracao" type="date" use="required" />
+		<attribute name="dataInicioIncidencia" type="date">
+			<annotation>
+				<documentation>Campo destinado a armazenar a data de início de incidência de juros ou correção monetária, quando for este o tipo de valor.
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="rubrica" use="required">
+			<simpleType>
+				<restriction base="string">
+					<enumeration value="PRINCIPAL" />
+					<enumeration value="MULTA" />
+					<enumeration value="JUROS" />
+					<enumeration value="CORRECAO" />
+				</restriction>
+			</simpleType>
+		</attribute>
+		<attribute name="tipoValor" use="required">
+			<simpleType>
+				<restriction base="string">
+					<enumeration value="ORIGINARIO" />
+					<enumeration value="ATUALIZACAO" />
+				</restriction>
+			</simpleType>
+		</attribute>
+	</complexType>
+
+	<complexType name="tipoDevedorPrincipal">
+		<attribute name="inscricaoMF" type="string" use="required" />
+	</complexType>
+	
+	<complexType name="tipoDevedorAlternativo">
+		<attribute name="inscricaoMF" type="string" use="required" />
+		<attribute name="tipo" use="required">
+			<simpleType>
+				<restriction base="string">
+					<enumeration value="SOLIDARIO" />
+					<enumeration value="SUBSIDIARIO" />
+				</restriction>
+			</simpleType>
+		</attribute>
+	</complexType>
+</schema>

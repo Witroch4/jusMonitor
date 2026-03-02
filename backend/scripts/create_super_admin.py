@@ -6,7 +6,7 @@ Usage:
     python -m scripts.create_super_admin
 
     # Or with custom credentials:
-    SUPER_ADMIN_EMAIL=admin@jusmonitor.com SUPER_ADMIN_PASSWORD=secret123 python -m scripts.create_super_admin
+    SUPER_ADMIN_EMAIL=admin@jusmonitoria.com SUPER_ADMIN_PASSWORD=secret123 python -m scripts.create_super_admin
 
 Also seeds default worker schedules.
 """
@@ -30,9 +30,15 @@ from app.db.models.worker_schedule import WorkerSchedule
 
 
 PLATFORM_TENANT_SLUG = "_platform"
-PLATFORM_TENANT_NAME = "JusMonitor Platform"
+PLATFORM_TENANT_NAME = "JusMonitorIA Platform"
 
 DEFAULT_SCHEDULES = [
+    {
+        "task_name": "tpu_sync_weekly",
+        "cron_expression": "0 4 * * 1",
+        "description": "Sincronizar TPU (classes e assuntos CNJ) toda segunda-feira às 04:00",
+        "config": {},
+    },
     {
         "task_name": "datajud_poller",
         "cron_expression": "0 */6 * * *",
@@ -81,7 +87,7 @@ async def create_platform_tenant(session) -> Tenant:
 async def create_super_admin(session, tenant: Tenant) -> User:
     """Create or update the super admin user."""
     email = settings.super_admin_email or "witalo_rocha@hotmail.com"
-    password = settings.super_admin_password or "W#@@%¨&!B!!!UN<L="
+    password = settings.super_admin_password or "Witalosenha1616Master1616"
 
     result = await session.execute(
         select(User).where(User.email == email, User.tenant_id == tenant.id)
@@ -138,7 +144,7 @@ async def create_default_schedules(session) -> None:
 
 
 async def main():
-    print("\n=== JusMonitor Super Admin Setup ===\n")
+    print("\n=== JusMonitorIA Super Admin Setup ===\n")
 
     async with AsyncSessionLocal() as session:
         print("1. Platform Tenant")

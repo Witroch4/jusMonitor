@@ -1,15 +1,20 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { PeticaoFormDadosProcesso } from './PeticaoFormDadosProcesso'
+import { PeticaoFormPartes } from './PeticaoFormPartes'
+import { PeticaoFormAssuntos } from './PeticaoFormAssuntos'
+import { PeticaoFormCaracteristicas } from './PeticaoFormCaracteristicas'
 import { PeticaoFormUpload } from './PeticaoFormUpload'
 import { PeticaoFormCertificado } from './PeticaoFormCertificado'
 import { PeticaoFormRevisao, useRevisaoValidation } from './PeticaoFormRevisao'
 import { PeticaoAnaliseIA } from './PeticaoAnaliseIA'
 import { CertificadoModal } from './CertificadoModal'
 import { useCreatePeticao, useUploadDocumento, useProtocolar } from '@/hooks/api/usePeticoes'
+import { useQueryClient } from '@tanstack/react-query'
+import { useProfile } from '@/hooks/api/useProfile'
 import { TRIBUNAIS } from '@/lib/data/tribunais'
-import type { NovaPeticaoFormData, UploadedFile, AnaliseIA } from '@/types/peticoes'
+import type { NovaPeticaoFormData, UploadedFile, AnaliseIA, Polo, AssuntoProcessual } from '@/types/peticoes'
 import { ChevronLeft } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -24,6 +29,13 @@ const INITIAL_FORM: NovaPeticaoFormData = {
   assunto: '',
   descricao: '',
   certificadoId: '',
+  dadosBasicos: {
+    polos: [
+      { polo: 'AT', partes: [{ nome: '', tipoPessoa: 'fisica' }], advogados: [{ nome: '', inscricaoOAB: '', intimacao: true }] },
+      { polo: 'PA', partes: [{ nome: '', tipoPessoa: 'fisica' }], advogados: [] },
+    ],
+    assuntos: [],
+  },
 }
 
 export function PeticaoForm({ onVoltar }: Props) {
@@ -33,10 +45,44 @@ export function PeticaoForm({ onVoltar }: Props) {
   const [certModalOpen, setCertModalOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  const queryClient = useQueryClient()
   const createPeticao = useCreatePeticao()
   const uploadDocumento = useUploadDocumento()
   const protocolar = useProtocolar()
+  const { data: profile } = useProfile()
+
+  // Auto-preencher advogado do Polo Ativo com dados do perfil do usuário
+  useEffect(() => {
+    if (!profile?.oab_number) return
+    setFormData((prev) => {
+      const poloAt = prev.dadosBasicos?.polos.find((p) => p.polo === 'AT')
+      const adv = poloAt?.advogados[0]
+      // Só preenche se ainda estiver vazio (não sobrescreve edição manual)
+      if (adv && !adv.nome && !adv.inscricaoOAB) {
+        const oab = `${profile.oab_state || ''}${profile.oab_number}`
+        return {
+          ...prev,
+          dadosBasicos: {
+            ...prev.dadosBasicos!,
+            polos: prev.dadosBasicos!.polos.map((p) =>
+              p.polo === 'AT'
+                ? { ...p, advogados: [{ nome: profile.full_name || '', inscricaoOAB: oab, cpf: profile.cpf || '', intimacao: true }] }
+                : p
+            ),
+          },
+        }
+      }
+      return prev
+    })
+  }, [profile])
   const isValid = useRevisaoValidation(formData, files)
+
+  const updateDadosBasicos = useCallback((partial: Partial<NovaPeticaoFormData['dadosBasicos']>) => {
+    setFormData((prev) => ({
+      ...prev,
+      dadosBasicos: { ...prev.dadosBasicos!, ...partial },
+    }))
+  }, [])
 
   const tribunal = TRIBUNAIS.find((t) => t.id === formData.tribunalId)
   const limiteArquivoMB = tribunal?.limiteArquivoMB ?? 5
@@ -68,12 +114,15 @@ export function PeticaoForm({ onVoltar }: Props) {
           arquivo: f.file,
           tipoDocumento: f.tipoDocumento,
           ordem: i + 1,
+          sigiloso: f.sigiloso,
         })
       }
 
       // 3. Trigger filing via worker
       await protocolar.mutateAsync(peticao.id)
 
+      // Invalidar cache para que aba Casos mostre o novo processo
+      queryClient.invalidateQueries({ queryKey: ['peticoes', 'protocoladas'] })
       toast.success('Petição enviada para protocolo!')
       onVoltar()
     } catch (err: unknown) {
@@ -89,7 +138,7 @@ export function PeticaoForm({ onVoltar }: Props) {
     const minValid =
       !!formData.tribunalId &&
       !!formData.tipoPeticao &&
-      formData.assunto.length > 3
+      (formData.dadosBasicos?.assuntos?.length || 0) > 0
     if (!minValid) {
       toast.error('Preencha tribunal, tipo e assunto para salvar o rascunho.')
       return
@@ -109,6 +158,7 @@ export function PeticaoForm({ onVoltar }: Props) {
           arquivo: f.file,
           tipoDocumento: f.tipoDocumento,
           ordem: i + 1,
+          sigiloso: f.sigiloso,
         })
       }
 
@@ -148,7 +198,34 @@ export function PeticaoForm({ onVoltar }: Props) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left column - Form sections */}
           <div className="lg:col-span-2 space-y-6">
-            <PeticaoFormDadosProcesso formData={formData} onChange={updateForm} />
+            <PeticaoFormDadosProcesso
+              formData={formData}
+              onChange={updateForm}
+              dadosBasicos={formData.dadosBasicos}
+              onDadosBasicosChange={updateDadosBasicos}
+            />
+            <PeticaoFormAssuntos
+              classeProcessual={formData.dadosBasicos?.classeProcessual}
+              classeProcessualNome={formData.dadosBasicos?.classeProcessualNome}
+              materiaCodigo={formData.dadosBasicos?.materiaCodigo}
+              materiaNome={formData.dadosBasicos?.materiaNome}
+              assuntos={formData.dadosBasicos?.assuntos || []}
+              onClasseChange={(codigo, nome) =>
+                updateDadosBasicos({ classeProcessual: codigo, classeProcessualNome: nome })
+              }
+              onMateriaChange={(codigo, nome) =>
+                updateDadosBasicos({ materiaCodigo: codigo, materiaNome: nome })
+              }
+              onAssuntosChange={(assuntos: AssuntoProcessual[]) => updateDadosBasicos({ assuntos })}
+            />
+            <PeticaoFormPartes
+              polos={formData.dadosBasicos?.polos || []}
+              onChange={(polos: Polo[]) => updateDadosBasicos({ polos })}
+            />
+            <PeticaoFormCaracteristicas
+              dadosBasicos={formData.dadosBasicos || { polos: [], assuntos: [] }}
+              onChange={updateDadosBasicos}
+            />
             <PeticaoFormUpload files={files} onFilesChange={setFiles} limiteArquivoMB={limiteArquivoMB} />
             <PeticaoFormRevisao formData={formData} files={files} analise={analise} />
           </div>

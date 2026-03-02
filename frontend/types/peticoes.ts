@@ -1,4 +1,4 @@
-// Petition management types for JusMonitor
+// Petition management types for JusMonitorIA
 
 export type PeticaoStatus =
   | 'rascunho'
@@ -49,6 +49,12 @@ export type TribunalId =
   | 'TJCE-2G'
   | 'TRF5-JFCE'
   | 'TRF5-REG'
+  | 'TRF5-JFAL'
+  | 'TRF5-JFSE'
+  | 'TRF5-JFPE'
+  | 'TRF5-JFPB'
+  | 'TRF5-JFRN'
+  | 'TRF6-1G'
   | 'TRT7'
   | 'TRF3-1G'
   | 'TRF3-2G'
@@ -90,6 +96,7 @@ export interface PeticaoDocumento {
   tamanhoBytes: number
   tipoDocumento: TipoDocumento
   ordem: number
+  sigiloso: boolean
   uploadedAt: string
   status: 'uploading' | 'uploaded' | 'error' | 'validado'
   erroValidacao?: string
@@ -171,6 +178,61 @@ export interface PeticaoEvento {
   criadoEm: string
 }
 
+// MNI 2.2.2 structured types
+export interface Pessoa {
+  nome: string
+  tipoPessoa: 'fisica' | 'juridica' | 'autoridade'
+  cpf?: string
+  cnpj?: string
+  sexo?: 'M' | 'F'
+  dataNascimento?: string
+}
+
+export interface Advogado {
+  nome: string
+  inscricaoOAB: string
+  cpf?: string
+  tipoRepresentante?: string
+  intimacao?: boolean
+}
+
+export interface Polo {
+  polo: 'AT' | 'PA' | 'TC'
+  partes: Pessoa[]
+  advogados: Advogado[]
+}
+
+export interface OrgaoJulgador {
+  codigoOrgao?: string
+  nomeOrgao?: string
+  codigoMunicipioIBGE?: number
+  instancia?: string
+}
+
+export interface AssuntoProcessual {
+  codigoNacional: number
+  nome?: string
+  principal: boolean
+  hierarquia?: string
+}
+
+export interface DadosBasicos {
+  polos: Polo[]
+  orgaoJulgador?: OrgaoJulgador
+  assuntos: AssuntoProcessual[]
+  classeProcessual?: number
+  classeProcessualNome?: string
+  materiaCodigo?: number
+  materiaNome?: string
+  codigoLocalidade?: string
+  competencia?: number
+  nivelSigilo?: number
+  valorCausa?: number
+  prioridade?: string[]
+  justicaGratuita?: boolean
+  pedidoLiminar?: boolean
+}
+
 export interface NovaPeticaoFormData {
   tribunalId: TribunalId | ''
   processoNumero: string
@@ -178,12 +240,14 @@ export interface NovaPeticaoFormData {
   assunto: string
   descricao: string
   certificadoId: string
+  dadosBasicos?: DadosBasicos
 }
 
 export interface UploadedFile {
   file: File
   id: string
   tipoDocumento: TipoDocumento
+  sigiloso: boolean
   status: 'uploading' | 'uploaded' | 'error'
   erroValidacao?: string
 }

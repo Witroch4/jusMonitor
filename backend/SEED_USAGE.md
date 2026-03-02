@@ -108,7 +108,7 @@ ENCRYPTION_KEY=...  # For API key encryption
 Ensure your database is running and configured in `.env`:
 
 ```bash
-DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/jusmonitor
+DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/jusmonitoria
 ```
 
 ## Testing the Seed Data
@@ -170,7 +170,7 @@ python -m cli.seed --all
 docker ps | grep postgres
 
 # Test connection
-psql -h localhost -U user -d jusmonitor
+psql -h localhost -U user -d jusmonitoria
 ```
 
 ### Missing Dependencies
@@ -185,7 +185,7 @@ pip install -r requirements.txt
 ### Permission Errors
 Ensure database user has necessary permissions:
 ```sql
-GRANT ALL PRIVILEGES ON DATABASE jusmonitor TO user;
+GRANT ALL PRIVILEGES ON DATABASE jusmonitoria TO user;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO user;
 ```
 

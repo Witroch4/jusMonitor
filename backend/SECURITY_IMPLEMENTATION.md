@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the comprehensive security validations implemented for the JusMonitor CRM Orquestrador system, addressing Requirement 1.4 (Autenticação e Autorização) with additional security hardening measures.
+This document describes the comprehensive security validations implemented for the JusMonitorIA CRM Orquestrador system, addressing Requirement 1.4 (Autenticação e Autorização) with additional security hardening measures.
 
 ## Implemented Security Features
 
@@ -303,7 +303,7 @@ RATE_LIMIT_AI_PER_MINUTE=10
 
 ```env
 # Production CORS
-CORS_ORIGINS=["https://app.jusmonitor.com","https://admin.jusmonitor.com"]
+CORS_ORIGINS=["https://app.jusmonitoria.com","https://admin.jusmonitoria.com"]
 CORS_ALLOW_CREDENTIALS=true
 CORS_MAX_AGE=3600
 

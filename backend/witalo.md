@@ -2,7 +2,7 @@ docker compose exec backend alembic upgrade head
 
 ./scripts/seed.sh --all
 
-Relatório Completo do Backend - JusMonitor
+Relatório Completo do Backend - JusMonitorIA
 Visão Geral
 O backend é uma aplicação FastAPI modular multi-tenant com arquitetura em camadas, async/await em toda a stack, e integração IA com múltiplos provedores.
 

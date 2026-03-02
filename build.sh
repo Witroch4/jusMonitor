@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
 # =============================================================================
-# build.sh - Build e Push de Imagens Docker para PRODUÇÃO (JusMonitor)
+# build.sh - Build e Push de Imagens Docker para PRODUÇÃO (JusMonitorIA)
 # =============================================================================
-# Uso: ./build.sh [TAG] [--no-deploy] [--backend-only] [--frontend-only]
+# Uso: ./build.sh [TAG] [--no-deploy] [--backend-only] [--frontend-only] [--scraper-only]
 # =============================================================================
 
 set -euo pipefail
 
-IMAGE_FRONTEND="witrocha/jusmonitor-frontend"
-IMAGE_BACKEND="witrocha/jusmonitor-backend"
-STACK_NAME="jusmonitor"
+IMAGE_FRONTEND="witrocha/jusmonitoria-frontend"
+IMAGE_BACKEND="witrocha/jusmonitoria-backend"
+IMAGE_SCRAPER="witrocha/jusmonitoria-scraper"
+STACK_NAME="jusmonitoria"
 
 # Portainer config (carrega de .env se existir)
 if [ -f ".env" ] && grep -qE '^PORTAINER_' ".env" 2>/dev/null; then
@@ -27,7 +28,7 @@ BLUE='\033[0;34m'; CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
 show_help() {
   cat << EOF
 ${BOLD}${CYAN}╔══════════════════════════════════════════════════════════════╗
-║        🚀  JusMonitor - Build & Push para Produção           ║
+║        🚀  JusMonitorIA - Build & Push para Produção           ║
 ╚══════════════════════════════════════════════════════════════╝${NC}
 
 ${BOLD}Uso:${NC} ./build.sh [TAG] [opções]
@@ -39,6 +40,7 @@ ${BOLD}Opções:${NC}
   --no-deploy        Pula o force-update dos serviços em produção
   --backend-only     Build apenas do backend
   --frontend-only    Build apenas do frontend
+  --scraper-only     Build apenas do scraper
   --help, -h         Mostra esta ajuda
 
 ${BOLD}Exemplos:${NC}
@@ -56,6 +58,7 @@ ${BOLD}Deploy automático (Portainer):${NC}
 ${BOLD}Imagens:${NC}
   Frontend: ${IMAGE_FRONTEND}
   Backend:  ${IMAGE_BACKEND}
+  Scraper:  ${IMAGE_SCRAPER}
 EOF
 }
 
@@ -127,13 +130,15 @@ TAG="latest"
 NO_DEPLOY=false
 BUILD_FRONTEND=true
 BUILD_BACKEND=true
+BUILD_SCRAPER=true
 
 for arg in "$@"; do
   case "${arg}" in
     help|--help|-h)   show_help; exit 0 ;;
     --no-deploy)      NO_DEPLOY=true ;;
-    --frontend-only)  BUILD_BACKEND=false ;;
-    --backend-only)   BUILD_FRONTEND=false ;;
+    --frontend-only)  BUILD_BACKEND=false; BUILD_SCRAPER=false ;;
+    --backend-only)   BUILD_FRONTEND=false; BUILD_SCRAPER=false ;;
+    --scraper-only)   BUILD_FRONTEND=false; BUILD_BACKEND=false ;;
     *)                TAG="${arg}" ;;
   esac
 done
@@ -146,7 +151,7 @@ fi
 
 echo ""
 echo -e "${BOLD}${CYAN}╔══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}${CYAN}║${NC}  🚀 JusMonitor Build & Push — tag: ${BOLD}${TAG}${NC}"
+echo -e "${BOLD}${CYAN}║${NC}  🚀 JusMonitorIA Build & Push — tag: ${BOLD}${TAG}${NC}"
 if [ "${CAN_DEPLOY}" = true ]; then
   echo -e "${BOLD}${CYAN}║${NC}  🔄 Deploy automático: ${GREEN}ATIVO${NC}"
 elif [ "${NO_DEPLOY}" = true ]; then
@@ -167,7 +172,7 @@ if [ "${BUILD_FRONTEND}" = true ]; then
   echo -e "==> [${STEP}] ${BOLD}Building frontend...${NC}"
   docker build \
     -f docker/frontend/Dockerfile.prod \
-    --build-arg NEXT_PUBLIC_API_URL=https://jusmonitoria.witdev.com.br/api/v1 \
+    --build-arg NEXT_PUBLIC_API_URL=https://jusmonitoriaia.witdev.com.br/api/v1 \
     -t "${IMAGE_FRONTEND}:latest" \
     .
 
@@ -215,6 +220,33 @@ if [ "${BUILD_BACKEND}" = true ]; then
 fi
 
 # =============================================================================
+# Build Scraper
+# =============================================================================
+if [ "${BUILD_SCRAPER}" = true ]; then
+  STEP=$((STEP + 1))
+  echo -e "==> [${STEP}] ${BOLD}Building scraper...${NC}"
+  docker build \
+    -f docker/scraper/Dockerfile.prod \
+    -t "${IMAGE_SCRAPER}:latest" \
+    .
+
+  if [ "${TAG}" != "latest" ]; then
+    docker tag "${IMAGE_SCRAPER}:latest" "${IMAGE_SCRAPER}:${TAG}"
+  fi
+  echo -e "  ${GREEN}✓${NC} Scraper build completo."
+  echo ""
+
+  STEP=$((STEP + 1))
+  echo -e "==> [${STEP}] ${BOLD}Pushing scraper...${NC}"
+  docker push "${IMAGE_SCRAPER}:latest"
+  if [ "${TAG}" != "latest" ]; then
+    docker push "${IMAGE_SCRAPER}:${TAG}"
+  fi
+  echo -e "  ${GREEN}✓${NC} Scraper push completo."
+  echo ""
+fi
+
+# =============================================================================
 # Deploy via Portainer
 # =============================================================================
 if [ "${CAN_DEPLOY}" = true ]; then
@@ -236,6 +268,14 @@ if [ "${CAN_DEPLOY}" = true ]; then
       deploy_fail=$((deploy_fail + 1))
     fi
     if force_update_service "worker" "${IMAGE_BACKEND}:${TAG}"; then
+      deploy_ok=$((deploy_ok + 1))
+    else
+      deploy_fail=$((deploy_fail + 1))
+    fi
+  fi
+
+  if [ "${BUILD_SCRAPER}" = true ]; then
+    if force_update_service "scraper" "${IMAGE_SCRAPER}:${TAG}"; then
       deploy_ok=$((deploy_ok + 1))
     else
       deploy_fail=$((deploy_fail + 1))
@@ -274,5 +314,9 @@ fi
 if [ "${BUILD_BACKEND}" = true ]; then
   echo "     - ${IMAGE_BACKEND}:latest"
   [ "${TAG}" != "latest" ] && echo "     - ${IMAGE_BACKEND}:${TAG}"
+fi
+if [ "${BUILD_SCRAPER}" = true ]; then
+  echo "     - ${IMAGE_SCRAPER}:latest"
+  [ "${TAG}" != "latest" ] && echo "     - ${IMAGE_SCRAPER}:${TAG}"
 fi
 echo ""

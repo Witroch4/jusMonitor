@@ -27,7 +27,7 @@ All requirements from task 24.2 have been satisfied:
 
 ### ✅ 3. Usar Redis para contadores
 - **Implementation**: Uses `redis.asyncio` for distributed rate limiting
-- **Key pattern**: `jusmonitor:ratelimit:{client_id}:{window}`
+- **Key pattern**: `jusmonitoria:ratelimit:{client_id}:{window}`
 - **Algorithm**: Sliding window with per-minute granularity
 - **TTL**: 120 seconds (2 minutes) for automatic cleanup
 - **Atomic operations**: Uses Redis INCR for thread-safe counter increments
@@ -237,12 +237,12 @@ Content-Type: application/json
 
 Rate limit counters are stored with pattern:
 ```
-jusmonitor:ratelimit:{client_id}:{window}
+jusmonitoria:ratelimit:{client_id}:{window}
 ```
 
 Example:
 ```
-jusmonitor:ratelimit:user:123e4567-e89b-12d3-a456-426614174000:28401120
+jusmonitoria:ratelimit:user:123e4567-e89b-12d3-a456-426614174000:28401120
 ```
 
 ### Logs

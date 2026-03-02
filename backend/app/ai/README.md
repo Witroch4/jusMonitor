@@ -1,4 +1,4 @@
-# Sistema de IA com LangGraph - JusMonitor
+# Sistema de IA com LangGraph - JusMonitorIA
 
 Sistema completo de inteligência artificial para automação jurídica usando LangGraph, LiteLLM e múltiplos provedores de IA.
 

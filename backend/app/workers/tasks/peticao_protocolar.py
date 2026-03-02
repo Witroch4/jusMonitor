@@ -164,6 +164,7 @@ async def protocolar_peticao_task(peticao_id: str, tenant_id: str) -> dict:
             id_manifestante=cert.titular_cpf_cnpj.replace(".", "").replace("-", "").replace("/", ""),
             numero_processo=pet.processo_numero,
             documentos=documentos_para_mni,
+            dados_basicos_json=pet.dados_basicos_json,
         )
 
         # --- Handle result ---
@@ -182,6 +183,24 @@ async def protocolar_peticao_task(peticao_id: str, tenant_id: str) -> dict:
                 detalhes=filing_result.mensagem,
             )
             await session.commit()
+
+            # --- Auto-create monitored process ---
+            try:
+                from app.db.repositories.processo_monitorado import ProcessoMonitoradoRepository
+                pm_repo = ProcessoMonitoradoRepository(session, tenant_uuid)
+                numero_clean = pet.processo_numero.replace(".", "").replace("-", "").replace(" ", "")
+                existing = await pm_repo.get_by_numero(numero_clean)
+                if not existing:
+                    await pm_repo.create(
+                        numero=numero_clean,
+                        apelido=pet.assunto,
+                        criado_por=pet.criado_por,
+                        peticao_id=pet_uuid,
+                    )
+                    await session.commit()
+                    logger.info("Auto-created monitored process for %s", numero_clean)
+            except Exception as e:
+                logger.warning("Failed to auto-create monitored process: %s", e)
 
             logger.info(
                 "Petition filed successfully",

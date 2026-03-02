@@ -20,7 +20,7 @@ export default function CentralPage() {
       id: '1',
       role: 'assistant',
       content:
-        'Olá! Sou o assistente jurídico do JusMonitor. Como posso ajudar você hoje? Posso ajudar com consultas sobre processos, clientes, prazos e muito mais.',
+        'Olá! Sou o assistente jurídico do JusMonitorIA. Como posso ajudar você hoje? Posso ajudar com consultas sobre processos, clientes, prazos e muito mais.',
       timestamp: new Date(),
     },
   ])

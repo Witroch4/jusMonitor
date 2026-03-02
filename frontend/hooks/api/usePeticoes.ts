@@ -51,6 +51,23 @@ export function usePeticaoEventos(peticaoId: string) {
   })
 }
 
+export function useConsultarProcesso() {
+  return useMutation({
+    mutationFn: async (params: {
+      numeroProcesso: string
+      tribunalId: string
+      certificadoId: string
+    }) => {
+      const { data } = await apiClient.post('/peticoes/consultar-processo', {
+        numeroProcesso: params.numeroProcesso,
+        tribunalId: params.tribunalId,
+        certificadoId: params.certificadoId,
+      })
+      return data
+    },
+  })
+}
+
 export function useCreatePeticao() {
   const queryClient = useQueryClient()
 
@@ -63,6 +80,7 @@ export function useCreatePeticao() {
         assunto: formData.assunto,
         descricao: formData.descricao || undefined,
         certificadoId: formData.certificadoId || undefined,
+        dadosBasicos: formData.dadosBasicos || undefined,
       })
       return data
     },
@@ -120,11 +138,13 @@ export function useUploadDocumento() {
       arquivo: File
       tipoDocumento: TipoDocumento
       ordem: number
+      sigiloso?: boolean
     }): Promise<PeticaoDocumento> => {
       const form = new FormData()
       form.append('arquivo', params.arquivo)
       form.append('tipo_documento', params.tipoDocumento)
       form.append('ordem', String(params.ordem))
+      form.append('sigiloso', String(params.sigiloso ?? false))
       const { data } = await apiClient.post<PeticaoDocumento>(
         `/peticoes/${params.peticaoId}/documentos`,
         form,
@@ -167,6 +187,19 @@ export function useProtocolar() {
       queryClient.invalidateQueries({ queryKey: ['peticoes', peticaoId] })
       queryClient.invalidateQueries({ queryKey: ['peticoes', peticaoId, 'eventos'] })
     },
+  })
+}
+
+export function usePeticoesProtocoladas() {
+  return useQuery({
+    queryKey: ['peticoes', 'protocoladas'],
+    queryFn: async (): Promise<PeticaoListItem[]> => {
+      const { data } = await apiClient.get<PeticaoListResponse>('/peticoes', {
+        params: { status: 'PROTOCOLADA' },
+      })
+      return data.items.filter((p) => p.numeroProtocolo)
+    },
+    staleTime: 5 * 60_000,
   })
 }
 

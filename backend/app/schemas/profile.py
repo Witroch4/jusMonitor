@@ -22,6 +22,17 @@ class UpdateProfileRequest(BaseModel):
         None, max_length=20, description="OAB number digits only"
     )
     oab_state: Optional[str] = Field(None, max_length=2)
+    cpf: Optional[str] = Field(None, max_length=14, description="CPF (11 digits)")
+
+    @field_validator("cpf")
+    @classmethod
+    def validate_cpf(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            digits = re.sub(r"\D", "", v)
+            if len(digits) != 11:
+                raise ValueError("CPF deve conter 11 dígitos")
+            return digits
+        return v
 
     @field_validator("oab_state")
     @classmethod
@@ -75,6 +86,8 @@ class ProfileResponse(BaseModel):
     oab_number: Optional[str] = None
     oab_state: Optional[str] = None
     oab_formatted: Optional[str] = None
+    cpf: Optional[str] = None
+    cpf_formatted: Optional[str] = None
 
     model_config = {"from_attributes": True}
 

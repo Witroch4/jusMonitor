@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# JusMonitor - Script de Desenvolvimento
+# JusMonitorIA - Script de Desenvolvimento
 # Inicia todos os serviços necessários para desenvolvimento local
 
 set -e
@@ -81,7 +81,7 @@ print_info "Aguardando PostgreSQL inicializar..."
 sleep 5
 
 # Verificar se PostgreSQL está pronto
-until docker-compose exec -T postgres pg_isready -U jusmonitor &>/dev/null; do
+until docker-compose exec -T postgres pg_isready -U jusmonitoria &>/dev/null; do
     echo -n "."
     sleep 1
 done
@@ -99,7 +99,7 @@ print_success "Redis está pronto!"
 
 # Aplicar migrations
 print_info "Aplicando migrations do banco de dados..."
-docker-compose exec -T postgres psql -U jusmonitor -d jusmonitor -c "CREATE EXTENSION IF NOT EXISTS vector;" 2>/dev/null || true
+docker-compose exec -T postgres psql -U jusmonitoria -d jusmonitoria -c "CREATE EXTENSION IF NOT EXISTS vector;" 2>/dev/null || true
 docker-compose run --rm backend alembic upgrade head
 
 if [ $? -eq 0 ]; then

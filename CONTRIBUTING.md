@@ -1,6 +1,6 @@
-# Guia de Contribuição - JusMonitor
+# Guia de Contribuição - JusMonitorIA
 
-Obrigado por considerar contribuir com o JusMonitor! Este documento fornece diretrizes para contribuir com o projeto.
+Obrigado por considerar contribuir com o JusMonitorIA! Este documento fornece diretrizes para contribuir com o projeto.
 
 ## 📋 Índice
 
@@ -52,7 +52,7 @@ Antes de criar um relatório de bug, verifique se o problema já não foi report
 
 ### Sugerir Melhorias
 
-Se você tem uma ideia para melhorar o JusMonitor:
+Se você tem uma ideia para melhorar o JusMonitorIA:
 
 1. **Verifique se já não existe** uma issue similar
 2. **Use o template de issue** para features
@@ -86,8 +86,8 @@ Se você tem uma ideia para melhorar o JusMonitor:
 
 ```bash
 # 1. Fork e clone o repositório
-git clone https://github.com/seu-usuario/jusmonitor.git
-cd jusmonitor
+git clone https://github.com/seu-usuario/jusmonitoria.git
+cd jusmonitoria
 
 # 2. Configure variáveis de ambiente
 cp backend/.env.example backend/.env
@@ -643,14 +643,14 @@ Qualquer outra informação relevante.
 
 ## 🙏 Agradecimentos
 
-Obrigado por contribuir com o JusMonitor! Sua ajuda é muito apreciada.
+Obrigado por contribuir com o JusMonitorIA! Sua ajuda é muito apreciada.
 
 Se você tiver dúvidas, não hesite em:
 
 - Abrir uma issue
-- Entrar em contato via email: dev@jusmonitor.com
+- Entrar em contato via email: dev@jusmonitoria.com
 - Participar das discussões no Slack (interno)
 
 ---
 
-**Desenvolvido com ❤️ pela equipe JusMonitor**
+**Desenvolvido com ❤️ pela equipe JusMonitorIA**

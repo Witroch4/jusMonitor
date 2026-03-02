@@ -6,6 +6,7 @@ from app.workers.broker import broker
 # This ensures tasks are discovered when the worker starts
 from app.workers.tasks import chatwit_handlers  # noqa: F401
 from app.workers.tasks import peticao_protocolar  # noqa: F401
+from app.workers.tasks import tpu_sync  # noqa: F401
 
 # Example of how to create tasks:
 # 

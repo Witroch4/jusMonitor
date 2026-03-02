@@ -1,4 +1,4 @@
-# Plano de Implementação: JusMonitor CRM Orquestrador
+# Plano de Implementação: JusMonitorIA CRM Orquestrador
 
 ## Visão Geral
 

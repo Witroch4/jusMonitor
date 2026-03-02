@@ -1,0 +1,664 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema targetNamespace="http://www.cnj.jus.br/tipos-servico-intercomunicacao-2.2.2"
+	elementFormDefault="qualified" xmlns="http://www.w3.org/2001/XMLSchema"
+	xmlns:tpi="http://www.cnj.jus.br/tipos-servico-intercomunicacao-2.2.2"
+	xmlns:pji="http://www.cnj.jus.br/intercomunicacao-2.2.2"
+	xmlns:xmime="http://www.w3.org/2005/05/xmlmime">
+	<import schemaLocation="intercomunicacao-2.2.2.xsd" namespace="http://www.cnj.jus.br/intercomunicacao-2.2.2" />
+	<complexType name="tipoConsultarAvisosPendentes">
+		<annotation>
+			<documentation>Tipo de elemento que reune o conjunto de dados pertinentes à realização de uma consulta de avisos de comunicação pendentes.
+Caso seja omitida a dataInicioConsulta, deverá retornar a lista de todos os avisos pendentes (ou seja, aqueles em relação aos quais ainda não houve ciência pelo comunicado).
+Caso já tenha havido a ciência (por consulta realizada com o uso da operação consultarTeorComunicacao ou por decurso do prazo legal de ciência), não deverá retornar o aviso.
+</documentation>
+		</annotation>
+		<sequence>
+			<element name="idRepresentado" type="string" minOccurs="0"
+				maxOccurs="1">
+				<annotation>
+					<documentation>
+						O identificador da pessoa representada pelo
+						consultante a respeito da qual se realiza a
+						consulta. O ideal é que o identificador seja o
+						número de inscrição da pessoa representada no
+						cadastro do Ministério da Fazenda (CPF ou CNPJ)
+						ou o número RIC. O parâmetro é opcional. Caso
+						não seja fornecido este parâmetro, a
+						implementação deverá assegurar que todos os
+						avisos existentes em processos nos quais o
+						consultante atua como órgão de representação
+						processual sejam retornados.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="idConsultante" type="string" minOccurs="0"
+				maxOccurs="1">
+				<annotation>
+					<documentation>
+						O identificador do órgão de representação
+						processual (MP, defensoria pública, advocacia
+						pública, escritório de advocacia ou advogado)
+						que efetiva a consulta. O ideal é que esse
+						identificador seja o número de inscrição do
+						consultante no Ministério da Fazenda (CPF ou
+						CNPJ) ou o registro individual do cidadão (RIC).
+						O parâmetro é opcional para os casos em que a
+						comunicação se der por canal seguro com
+						autenticação do certificado cliente. A
+						implementação deverá assegurar que, havendo
+						autenticação do certificado cliente, o parâmetro
+						seja ignorado em favor da autenticação do
+						certificado cliente.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="senhaConsultante" type="string" minOccurs="0"
+				maxOccurs="1">
+				<annotation>
+					<documentation>
+						A senha de acesso do órgão de representação
+						processual (MP, defensoria pública, advocacia
+						pública, escritório de advocacia ou advogado)
+						quando não tiver havido autenticação de
+						certificado cliente. A implementação deverá
+						assegurar que, havendo autenticação do
+						certificado cliente, o parâmetro seja ignorado
+						em favor da autenticação do certificado cliente.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="dataReferencia" type="pji:tipoDataHora"
+				minOccurs="0" maxOccurs="1">
+				<annotation>
+					<documentation>
+						Data inicial a partir da qual devem ser listados
+						os avisos pendentes. A data deve ser enviada no
+						formato 'AAAAMMDDHHMMSS'.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="tipoConsultarAvisosPendentesResposta">
+        <annotation>
+        	<documentation>Tipo de elemento que encapsula os dados de resposta relativos à existência de avisos pendentes. Retorna a indicação relativa ao sucesso da operação, campo de mensagem em texto e zero ou mais objetos do tipo 'tipoAvisoComunicacaoPendente' definido no namespace http://www.cnj.jus.br/intercomunicacao-2.2.2.</documentation>
+        </annotation>
+        <sequence>
+			<element name="sucesso" type="boolean" maxOccurs="1"
+				minOccurs="1">
+				<annotation>
+					<documentation>Indicador do sucesso da operação.
+								</documentation>
+				</annotation>
+			</element>
+			<element name="mensagem" type="string" maxOccurs="1"
+				minOccurs="1">
+				<annotation>
+					<documentation>Mensagem relativa à realização da operação.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="aviso" type="pji:tipoAvisoComunicacaoPendente"
+				maxOccurs="unbounded" minOccurs="0">
+				<annotation>
+					<documentation>Lista de objetos do tipo
+						'tipoAvisoComunicacaoPendente', previsto no esquema
+						http://www.cnj.jus.br/intercomunicacao-2.2.2/intercomunicacao-2.2.2.xsd.
+						A lista terá tamanho 0 caso não haja nenhuma comunicação
+						pendente ou caso haja erro na execução.
+								</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="tipoConsultarTeorComunicacao">
+        <annotation>
+        	<documentation>Tipo de elemento destinado a permitir a consulta de teor de comunicação processual pendente relativa ao consultante em um determinado processo judicial. 
+Os dados encapsulados são o identificador do consultante, sua senha, e o número do processo judicial no qual se está efetivando a consulta de comunicação.
+Os parâmetros de identificação e senha são dispensáveis no caso de autenticação de certificado cliente.
+</documentation>
+        </annotation>
+        <sequence>
+        	<element name="idConsultante" type="string" maxOccurs="1"
+        		minOccurs="0">
+        		<annotation>
+        			<documentation>
+        				O identificador do órgão de representação
+        				processual (MP, defensoria pública, advocacia
+        				pública, escritório de advocacia ou advogado)
+        				que efetiva a consulta. O ideal é que esse
+        				identificador seja o número de inscrição do
+        				consultante no Ministério da Fazenda (CPF ou
+        				CNPJ) ou o registro individual do cidadão (RIC).
+        				O parâmetro é opcional para os casos em que a
+        				comunicação se der por canal seguro com
+        				autenticação do certificado cliente. A
+        				implementação deverá assegurar que, havendo
+        				autenticação do certificado cliente, o parâmetro
+        				seja ignorado em favor da autenticação do
+        				certificado cliente.
+        			</documentation>
+        		</annotation>
+        	</element>
+        	<element name="senhaConsultante" type="string" minOccurs="0"
+        		maxOccurs="1">
+        		<annotation>
+        			<documentation>
+        				A senha de acesso do órgão de representação
+        				processual (MP, defensoria pública, advocacia
+        				pública, escritório de advocacia ou advogado)
+        				quando não tiver havido autenticação de
+        				certificado cliente. A implementação deverá
+        				assegurar que, havendo autenticação do
+        				certificado cliente, o parâmetro seja ignorado
+        				em favor da autenticação do certificado cliente.
+        			</documentation>
+        		</annotation>
+        	</element>
+            <choice><element name="numeroProcesso" type="pji:tipoNumeroUnico" maxOccurs="1" minOccurs="1">
+        		<annotation>
+        			<documentation>
+        				Número do processo judicial em que há
+        				comunicação processual pendente para o
+        				consultante. O número deve estar no formato
+        				previsto pela Resolução 65.
+        				Caso não seja fornecido esse número, deverá
+        				ser fornecido o identificadorAviso correspondente.
+
+        			</documentation>
+        		</annotation>
+</element><element name="identificadorAviso" type="pji:identificadorComunicacao" minOccurs="1" maxOccurs="1">
+        		<annotation>
+        			<documentation>
+        				Elemento opcional indicativo do aviso de
+        				comunicação a partir do qual se solicita o teor
+        				da comunicação. Caso não tenha sido fornecido, a
+        				operação deverá retornar todas as comunicações
+        				pendentes para o processo indicado.
+        			</documentation>
+        		</annotation>
+        	</element></choice>
+        </sequence>
+	</complexType>
+	<complexType name="tipoConsultarTeorComunicacaoResposta">
+		<sequence>
+			<element name="sucesso" type="boolean" maxOccurs="1"
+				minOccurs="1">
+				<annotation>
+					<documentation>Indicador do sucesso da operação.
+								</documentation>
+				</annotation>
+			</element>
+			<element name="mensagem" type="string" maxOccurs="1"
+				minOccurs="1">
+				<annotation>
+					<documentation>Mensagem relativa à realização da operação.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="comunicacao" type="pji:tipoComunicacaoProcessual"
+				maxOccurs="unbounded" minOccurs="0">
+				<annotation>
+					<documentation>Lista de objetos do tipo
+						'tipoComunicacaoProcessual', previsto no esquema
+						http://www.cnj.jus.br/intercomunicacao-2.2.2/intercomunicacao-2.2.2.xsd.
+						A lista terá tamanho 0 caso não haja nenhuma comunicação
+						pendente
+						ou caso haja erro na execução.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="tipoConsultarProcesso">
+		<annotation>
+			<documentation>Elemento destinado a encapsular os parâmetros
+				necessários a uma consulta processual.
+				A identificação do consultante
+				e sua senha são desnecessárias caso
+				tenha havido a autenticação e
+				autorização por meio de certificado
+				cliente.
+			</documentation>
+		</annotation>
+		<sequence>
+			<element name="idConsultante" type="string">
+				<annotation>
+					<documentation>
+						O identificador do órgão de representação
+						processual (MP, defensoria pública, advocacia
+						pública, escritório de advocacia ou advogado)
+						que efetiva a consulta. O ideal é que esse
+						identificador seja o número de inscrição do
+						consultante no Ministério da Fazenda (CPF ou
+						CNPJ) ou o registro individual do cidadão (RIC).
+						O parâmetro é opcional para os casos em que a
+						comunicação se der por canal seguro com
+						autenticação do certificado cliente. A
+						implementação deverá assegurar que, havendo
+						autenticação do certificado cliente, o parâmetro
+						seja ignorado em favor da autenticação do
+						certificado cliente.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="senhaConsultante" type="string">
+				<annotation>
+					<documentation>
+						A senha de acesso do órgão de representação
+						processual (MP, defensoria pública, advocacia
+						pública, escritório de advocacia ou advogado)
+						quando não tiver havido autenticação de
+						certificado cliente. A implementação deverá
+						assegurar que, havendo autenticação do
+						certificado cliente, o parâmetro seja ignorado
+						em favor da autenticação do certificado cliente.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="numeroProcesso" type="pji:tipoNumeroUnico">
+				<annotation>
+					<documentation>
+						O número do processo judicial conforme as regras
+						definidas pela Resolução 65.
+					</documentation>
+				</annotation>
+			</element>
+            <element name="dataReferencia" type="pji:tipoDataHora" maxOccurs="1" minOccurs="0">
+				<annotation>
+					<documentation>
+						Data de referência a partir da qual serão
+						retornados os movimentos ou os documentos, caso
+						tenham sido solicitados.
+					</documentation>
+				</annotation>
+			</element>
+            <element name="movimentos" type="boolean" maxOccurs="1"
+				minOccurs="0">
+				<annotation>
+					<documentation>
+						Indicação relativa à intenção de ver retornados
+						também os movimentos atrelados ao processo
+						consultado. As movimentações serão retornadas a
+						partir da dataReferencia. Caso não seja
+						fornecida dataReferencia, serão retornadas todas
+						as movimentações.
+					</documentation>
+				</annotation>
+			</element>
+            <choice>
+                <element name="incluirCabecalho" type="boolean" minOccurs="0" maxOccurs="1">
+                	<annotation>
+                		<documentation>
+            				Indicação relativa à intenção de ver
+            				retornados os dados básicos do processo.
+            			</documentation>
+                	</annotation></element>
+                <element name="incluirDocumentos" type="boolean"
+            		maxOccurs="1" minOccurs="0">
+            		<annotation>
+            			<documentation>
+            				Indicação relativa à intenção de ver
+            				retornados também os documentos atrelados ao
+            				processo consultado. Os documentos serão
+            				retornadas a partir da dataReferencia. Caso
+            				não seja fornecida dataReferencia, serão
+            				retornadas todos os documentos.
+            			</documentation>
+            		</annotation>
+            	</element>
+            	<element name="documento" type="string"
+            		maxOccurs="unbounded" minOccurs="1">
+            		<annotation>
+            			<documentation>
+            				Lista de identificadores dos documentos que
+            				se pretende recuperar com essa operação.
+            				Caso um dos documentos indicados seja parte
+            				de ato de comunicação processual ainda não
+            				visualizada pelo consultante, o tribunal
+            				fornecedor do serviço poderá enviar esse
+            				documento de forma encriptada, utilizando o
+            				algoritmo SHA-1 para gerar um hash do
+            				documento a ser utilizado como chave de
+            				encriptação. O algoritmo de encriptação
+            				utilizado será informado pelo tribunal.
+            			</documentation>
+            		</annotation>
+            	</element>
+            </choice>
+		</sequence>
+	</complexType>
+	<complexType name="tipoConsultarProcessoResposta">
+        <annotation>
+        	<documentation>Tipo de elemento que encapsula os dados de resposta relativos a uma consulta de processo judicial. Retorna indicativo do sucesso da operação, mensagem a seu respeito e zero ou um elemento do tipo 'tipoProcessoJudicial', definido no namespace http://www.cnj.jus.br/intercomunicao-2.2.2, contendo o processo consultado.
+Os elementos documentos do elemento processo poderão encerrar apenas binários encriptados cuja chave será fornecida na consultaTeorComunicacao, caso haja intimação pendente para o documento transferido.</documentation>
+        </annotation>
+        <sequence>
+			<element name="sucesso" type="boolean" maxOccurs="1"
+				minOccurs="1">
+				<annotation>
+					<documentation>Indicador do sucesso da operação.
+								</documentation>
+				</annotation>
+			</element>
+			<element name="mensagem" type="string" maxOccurs="1"
+				minOccurs="1">
+				<annotation>
+					<documentation>Mensagem relativa à realização da operação.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="processo" type="pji:tipoProcessoJudicial"
+				maxOccurs="1" minOccurs="0">
+				<annotation>
+					<documentation>Objetos do tipo 'tipoProcessoJudicial', previsto no
+						esquema
+						http://www.cnj.jus.br/intercomunicacao-2.2.2/intercomunicacao-2.2.2.xsd,
+						ou ausente caso não exista o processo ou tenha havido erro ao
+						consultá-lo.
+						O objeto incluirá movimentações e documentos caso
+						tenha sido
+						solicitado por quem o consultou.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="tipoEntregarManifestacaoProcessual">
+		<annotation>
+			<documentation>Tipo de elemento que encapsula os dados da manifestação processual que está sendo apresentada.
+Quando se tratar de processo em curso, deve ser informado o número do processo para o qual é dirigida a manifestação. Caso seja processo originário, devem ser enviados os dados básicos do processo para sua autuação e distribuição.
+						</documentation>
+		</annotation>
+		<sequence>
+			<element name="idManifestante" type="string" maxOccurs="1"
+				minOccurs="0">
+				<annotation>
+					<documentation>
+						O identificador do órgão de representação
+						processual (MP, defensoria pública, advocacia
+						pública, escritório de advocacia ou advogado)
+						que efetiva a manifestação. O ideal é que esse
+						identificador seja o número de inscrição do
+						manifestante no Ministério da Fazenda (CPF ou
+						CNPJ) ou o registro individual do cidadão (RIC).
+						No caso de transferência de processo judicial de
+						uma instância para outra, o identificador deverá
+						ser o identificador do tribunal remetente. O
+						parâmetro é opcional para os casos em que a
+						comunicação se der por canal seguro com
+						autenticação do certificado cliente. A
+						implementação deverá assegurar que, havendo
+						autenticação do certificado cliente, o parâmetro
+						seja ignorado em favor da autenticação do
+						certificado cliente.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="senhaManifestante" type="string"
+				maxOccurs="1" minOccurs="0">
+				<annotation>
+					<documentation>
+						A senha de acesso do órgão de representação
+						processual (MP, defensoria pública, advocacia
+						pública, escritório de advocacia ou advogado)
+						quando não tiver havido autenticação de
+						certificado cliente. A implementação deverá
+						assegurar que, havendo autenticação do
+						certificado cliente, o parâmetro seja ignorado
+						em favor da autenticação do certificado cliente.
+					</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<element name="numeroProcesso"
+					type="pji:tipoNumeroUnico" maxOccurs="1" minOccurs="1">
+					<annotation>
+						<documentation>
+							Número do processo judicial, conforme a
+							Resolução 65, no caso das manifestações
+							intermediárias.
+						</documentation>
+					</annotation>
+				</element>
+				<element name="dadosBasicos"
+					type="pji:tipoCabecalhoProcesso" maxOccurs="1" minOccurs="1">
+					<annotation>
+						<documentation>
+							Elemento do tipo 'tipoCabecalhoProcesso',
+							contendo todos os dados básicos necessários
+							à distribuição do processo judicial ou à
+							entrada de processo de instância inferior.
+						</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="documento" type="pji:tipoDocumento"
+				maxOccurs="unbounded" minOccurs="1">
+				<annotation>
+					<documentation>
+						Elemento do tipo 'tipoDocumento' previsto no
+						esquema
+						http://www.cnj.jus.br/intercomunicacao-2.2.2/intercomunicacao-2.2.2.xsd.
+						Este documento é a própria manifestação
+						processual. Podem ser apresentados mais de um
+						documento. No caso de manifestação inicial, ao
+						menos um dos documentos deverá ser do tipo
+						'INICIAL'. No caso de recurso, ao menos um dos
+						documentos deverá ser do tipo 'RECURSO'.
+
+					</documentation>
+				</annotation>
+			</element>
+			<element name="dataEnvio" type="pji:tipoDataHora"
+				maxOccurs="1" minOccurs="1">
+				<annotation>
+					<documentation>
+						Data do envio na origem.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="parametros" type="pji:tipoParametro"
+				maxOccurs="unbounded" minOccurs="0">
+				<annotation>
+					<documentation>
+						Elementos do tipo 'tipoParametro', definido no
+						esquema
+						http://www.cnj.jus.br/intercomunicacao-2.2.2/intercomunicacao-2.2.2.xsd,
+						para extensão do modelo e para nova tentativa de
+						entrega quando os dados de uma primeira
+						tentativa tenham sido insuficientes para a
+						distribuição automatizada.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="tipoEntregarManifestacaoProcessualResposta">
+		<annotation>
+			<documentation>				Tipo de elemento que encapsula a resposta decorrente da manifestação apresentada. 
+				Sendo bem sucedida ou não, deve ser fornecido protocolo da operação. 
+				O recibo deverá ser apresentado em caso de sucesso.
+</documentation>
+		</annotation>
+		<sequence>
+			<element name="sucesso" type="boolean" maxOccurs="1"
+				minOccurs="1">
+				<annotation>
+					<documentation>
+						Indicador do sucesso da operação.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="mensagem" type="string" maxOccurs="1"
+				minOccurs="1">
+				<annotation>
+					<documentation>
+						Mensagem relativa à realização da operação.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="protocoloRecebimento" type="string"
+				maxOccurs="1" minOccurs="1">
+				<annotation>
+					<documentation>
+						Número do protocolo da operação.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="dataOperacao" type="pji:tipoDataHora" maxOccurs="1"
+				minOccurs="1">
+				<annotation>
+					<documentation>
+						Data em que a operação foi realizada.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="recibo" type="base64Binary" xmime:expectedContentTypes="application/octet-stream" maxOccurs="1"
+				minOccurs="0">
+				<annotation>
+					<documentation>
+						Recibo da operação, se bem sucedida. O recibo
+						deverá ser um arquivo PDF assinado
+						eletronicamente.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="parametro" type="pji:tipoParametro" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Lista de parâmetros indicativos das competências passíveis de distribuição quando inviável a distribuição automática pelos dados fornecidos pelo protocolante de processo inicial ou recurso.
+</documentation>
+				</annotation></element>
+		</sequence>
+	</complexType>
+	<complexType name="tipoConsultarAlteracao">
+		<annotation>
+			<documentation>Tipo de elemento que encapsula os dados de
+				consulta
+				relativos à existência de modificações em um processo
+				judicial.
+			</documentation>
+		</annotation>
+		<sequence>
+			<element name="idConsultante" type="string">
+				<annotation>
+					<documentation>O identificador do órgão de representação processual (MP, defensoria pública, advocacia pública, escritório de advocacia ou advogado) que efetiva a consulta. O ideal é que esse identificador seja o número de inscrição do consultante no Ministério da Fazenda (CPF ou CNPJ) ou o registro individual do cidadão (RIC). 
+O parâmetro é opcional para os casos em que a comunicação se der por canal seguro com autenticação do certificado cliente. A implementação deverá assegurar que, havendo autenticação do certificado cliente, o parâmetro seja ignorado em favor da autenticação do certificado cliente.</documentation>
+				</annotation>
+			</element>
+			<element name="senhaConsultante" type="string">
+				<annotation>
+					<documentation>A senha de acesso do órgão de representação
+						processual (MP, defensoria pública, advocacia pública,
+						escritório
+						de advocacia ou advogado) quando não tiver havido
+						autenticação de
+						certificado cliente.
+						A implementação deverá assegurar que, havendo
+						autenticação do
+						certificado cliente, o parâmetro seja ignorado em
+						favor da
+						autenticação do certificado cliente.</documentation>
+				</annotation>
+			</element>
+			<element name="numeroProcesso" type="string">
+				<annotation>
+					<documentation>
+						O número do processo judicial, conforme as
+						regras
+						definidas pela Resolução 65, cujos hashs de conjuntos de dados
+						se
+						pretende obter.
+      					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="tipoConsultarAlteracaoResposta">
+		<annotation>
+			<documentation>Tipo de elemento que encapsula os dados de resposta relativos à existência de alterações em um processo judicial.	</documentation>
+		</annotation>
+		<sequence>
+			<element name="sucesso" type="boolean" maxOccurs="1"
+				minOccurs="1">
+				<annotation>
+					<documentation>Indicador do sucesso da operação.
+								</documentation>
+				</annotation>
+			</element>
+			<element name="mensagem" type="string" maxOccurs="1"
+				minOccurs="1">
+				<annotation>
+					<documentation>Mensagem relativa à realização da operação.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="hashCabecalho" type="string" maxOccurs="1"
+				minOccurs="0">
+				<annotation>
+					<documentation>Se existente o processo, hash SHA-1 do conjunto de dados decorrentes do cabeçalho do processo judicial.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="hashMovimentacoes" type="string" maxOccurs="1"
+				minOccurs="0">
+				<annotation>
+					<documentation>Se existente o processo, hash SHA-1 do conjunto de identificadores das movimentações ocorridas no processo judicial.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="hashDocumentos" type="string" maxOccurs="1"
+				minOccurs="0">
+				<annotation>
+					<documentation>Se existente o processo, hash SHA-1 do conjunto dos documentos processuais existentes no processo judicial.
+Esse hash poderá ser o hash da string resultante da concatenação textual dos hashs individuais dos documentos existentes no processo.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+
+
+
+    <complexType name="tipoConfirmarRecebimento">
+<annotation>
+			<documentation>Tipo de elemento que encapsula dados essenciais a confirmação de envio de processo entre tribunais.</documentation>
+		</annotation>
+		<sequence>
+			<element name="idRecebedor" type="string">
+				<annotation>
+					<documentation>O identificador do tribunal recebedor da manifestação processual de envio de processos.
+O parâmetro é opcional para os casos em que a comunicação se der por canal seguro com autenticação do certificado cliente. A implementação deverá assegurar que, havendo autenticação do certificado cliente, o parâmetro seja ignorado em favor da autenticação do certificado cliente.</documentation>
+				</annotation>
+			</element>
+			<element name="senhaRecebedor" type="string">
+				<annotation>
+					<documentation>A senha de acesso do tribunal recebedor da manifestação processual de envio de processos.
+A implementação deverá assegurar que, havendo autenticação do certificado cliente, o parâmetro seja ignorado em favor da autenticação do certificado cliente.</documentation>
+				</annotation>
+			</element>
+			<element name="protocolo" type="string">
+				<annotation>
+					<documentation>
+						O identificador do protocolo cujo recebimento integral se está confirmando.
+      					</documentation>
+				</annotation>
+			</element>
+		</sequence>    </complexType>
+
+    <complexType name="tipoConfirmarRecebimentoResposta">
+    <sequence>
+			<element name="sucesso" type="boolean" maxOccurs="1"
+				minOccurs="1">
+				<annotation>
+					<documentation>Indicador do sucesso da operação.</documentation>
+				</annotation>
+			</element>
+			<element name="mensagem" type="string" maxOccurs="1"
+				minOccurs="1">
+				<annotation>
+					<documentation>Mensagem relativa à realização da operação. Essa mensagem pode conter identificador relativo a eventual erro ocorrido.</documentation>
+				</annotation>
+			</element>
+			</sequence>
+    </complexType>
+</schema>

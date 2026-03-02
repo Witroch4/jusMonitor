@@ -1,0 +1,361 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<?xml-stylesheet type="text/xsl" href="wsdl-viewer.xsl"?>
+<wsdl:definitions xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+	xmlns:tic="http://www.cnj.jus.br/servico-intercomunicacao-2.2.2/"
+	xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+	name="servico-intercomunicacao-2.2.2" targetNamespace="http://www.cnj.jus.br/servico-intercomunicacao-2.2.2/">
+	<wsdl:types>
+		<xsd:schema targetNamespace="http://www.cnj.jus.br/servico-intercomunicacao-2.2.2/"
+			xmlns:Q1="http://www.cnj.jus.br/intercomunicacao-2.2.2" xmlns:Q2="http://www.cnj.jus.br/tipos-servico-intercomunicacao-2.2.2"
+			xmlns:Q3="http://www.cnj.jus.br/mni/cda">
+			<xsd:import schemaLocation="../xsd/tipos-servico-intercomunicacao-2.2.2.xsd"
+				namespace="http://www.cnj.jus.br/tipos-servico-intercomunicacao-2.2.2"></xsd:import>
+			<xsd:import schemaLocation="../xsd/intercomunicacao-2.2.2.xsd"
+				namespace="http://www.cnj.jus.br/intercomunicacao-2.2.2"></xsd:import>
+			<xsd:import schemaLocation="../xsd/cda-2.2.2.xsd" namespace="http://www.cnj.jus.br/mni/cda"></xsd:import>
+			<xsd:element name="consultarAvisosPendentes" type="Q2:tipoConsultarAvisosPendentes">
+				<xsd:annotation>
+					<xsd:documentation>
+						Elemento que reune o conjunto de dados
+						pertinentes à realização de uma consulta de
+						avisos de comunicação
+						pendentes.
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<xsd:element name="consultarAvisosPendentesResposta"
+				type="Q2:tipoConsultarAvisosPendentesResposta">
+			</xsd:element>
+			<xsd:element name="consultarTeorComunicacao" type="Q2:tipoConsultarTeorComunicacao">
+			</xsd:element>
+			<xsd:element name="consultarTeorComunicacaoResposta"
+				type="Q2:tipoConsultarTeorComunicacaoResposta">
+				<xsd:annotation>
+					<xsd:documentation>
+						Elemento que encapsula os dados relacionados com
+						a consulta de comunicações realizada.
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<xsd:element name="consultarProcesso" type="Q2:tipoConsultarProcesso">
+				<xsd:annotation>
+					<xsd:documentation>
+						Elemento destinado a encapsular os parâmetros
+						necessários a uma consulta processual. A
+						identificação do
+						consultante e sua senha são
+						desnecessárias caso tenha havido a
+						autenticação
+						e autorização por meio de certificado cliente.
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<xsd:element name="consultarProcessoResposta" type="Q2:tipoConsultarProcessoResposta">
+			</xsd:element>
+
+			<xsd:element name="entregarManifestacaoProcessual" type="Q2:tipoEntregarManifestacaoProcessual">
+				<xsd:annotation>
+					<xsd:documentation>
+						Elemento que encapsula os dados da manifestação
+						processual que está sendo apresentada.
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<xsd:element name="entregarManifestacaoProcessualResposta"
+				type="Q2:tipoEntregarManifestacaoProcessualResposta">
+				<xsd:annotation>
+					<xsd:documentation>
+						Elemento que encapsula a resposta decorrente da
+						manifestação.
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<xsd:element name="consultarAlteracao" type="Q2:tipoConsultarAlteracao">
+				<xsd:annotation>
+					<xsd:documentation>
+						Elemento que encapsula os dados de consulta
+						relativos à existência de modificações em um
+						processo judicial.
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<xsd:element name="consultarAlteracaoResposta" type="Q2:tipoConsultarAlteracaoResposta">
+				<xsd:annotation>
+					<xsd:documentation>
+						Elemento que encapsula os dados de resposta
+						relativos à existência de alterações em um
+						processo judicial.
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<xsd:element name="confirmarRecebimento" type="Q2:tipoConfirmarRecebimento">
+				<xsd:annotation>
+					<xsd:documentation>
+						Elemento que encapsula dados essenciais para
+						confirmar o recebimento de processo de outro tribunal.
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<xsd:element name="confirmarRecebimentoResposta" type="Q2:tipoConfirmarRecebimentoResposta">
+				<xsd:annotation>
+					<xsd:documentation>
+						Elemento que encapsula a resposta da confirmacao
+						de recebimento de processo de outro tribunal.
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+		</xsd:schema>
+	</wsdl:types>
+	<wsdl:message name="consultarAvisosPendentes">
+		<wsdl:part element="tic:consultarAvisosPendentes" name="parameters">
+			<wsdl:documentation>
+				Parâmetro destinado à indicação das informações
+				necessárias para concretização da consulta,
+				especificamente o
+				identificador do órgão representado, o
+				identificador do consultante e
+				a senha do consultante.
+				Todos os parâmetros são opcionais caso a
+				identificação
+				seja feita por meio de autenticação de certificado
+				cliente.
+			</wsdl:documentation>
+		</wsdl:part>
+	</wsdl:message>
+	<wsdl:message name="consultarAvisosPendentesResposta">
+		<wsdl:part element="tic:consultarAvisosPendentesResposta"
+			name="parameters">
+			<wsdl:documentation>
+				Resposta contendo o status da operação, mensagem
+				relativa à operação, e os avisos de comunicação do tipo
+				'tipoAvisoComunicacaoPendente', previsto no esquema
+				http://www.cnj.jus.br/intercomunicacao-2.2.2/intercomunicacao-2.2.2.xsd
+			</wsdl:documentation>
+		</wsdl:part>
+	</wsdl:message>
+	<wsdl:message name="consultarTeorComunicacao">
+		<wsdl:part name="parameters" element="tic:consultarTeorComunicacao">
+			<wsdl:documentation>Dados básicos destinados a permitir a consulta,
+				encapsulados no tipo 'tipoConsultaTeorComunicacao', especificamente
+				o identificador do consultante, sua senha, e o número do processo
+				judicial no qual se está efetivando a consulta de comunicação.
+				Os
+				parâmetros de identificação e senha são dispensáveis no caso de
+				autenticação de certificado cliente.
+			</wsdl:documentation>
+		</wsdl:part>
+	</wsdl:message>
+	<wsdl:message name="consultarTeorComunicacaoResposta">
+		<wsdl:part name="parameters" element="tic:consultarTeorComunicacaoResposta">
+			<wsdl:documentation>Resposta contendo o status da operação, mensagem
+				relativa à operação e as comunicações do tipo
+				'tipoComunicacaoProcessual', previsto no esquema
+				http://www.cnj.jus.br/intercomunicacao-2.2.2/intercomunicacao-2.2.2.xsd
+			</wsdl:documentation>
+		</wsdl:part>
+	</wsdl:message>
+	<wsdl:message name="consultarProcesso">
+		<wsdl:part name="parameters" element="tic:consultarProcesso">
+			<wsdl:documentation>Elemento destinado a encapsular os parâmetros
+				necessários a uma consulta processual.
+				A identificação do consultante
+				e sua senha são desnecessárias caso
+				tenha havido a autenticação e
+				autorização por meio de certificado
+				cliente.
+			</wsdl:documentation>
+		</wsdl:part>
+	</wsdl:message>
+	<wsdl:message name="consultarProcessoResposta">
+		<wsdl:part name="parameters" element="tic:consultarProcessoResposta">
+			<wsdl:documentation>Elemento destinado a encapsular os parâmetros de
+				resposta de uma consulta processual.
+				A resposta conterá o status da
+				operação, mensagem relativa à operação
+				e um elemento do tipo
+				'tipoProcesso', previsto no esquema
+				http://www.cnj.jus.br/intercomunicacao-2.2.2/intercomunicacao-2.2.2.xsd
+			</wsdl:documentation>
+		</wsdl:part>
+	</wsdl:message>
+	<wsdl:message name="entregarManifestacaoProcessual">
+		<wsdl:part name="parameters" element="tic:entregarManifestacaoProcessual">
+			<wsdl:documentation>Elemento que encapsula os dados da manifestação
+				processual que está sendo apresentada.
+			</wsdl:documentation>
+		</wsdl:part>
+	</wsdl:message>
+	<wsdl:message name="entregarManifestacaoProcessualResposta">
+		<wsdl:part name="parameters" element="tic:entregarManifestacaoProcessualResposta">
+			<wsdl:documentation>Elemento que encapsula a resposta decorrente da
+				manifestação.
+			</wsdl:documentation>
+		</wsdl:part>
+	</wsdl:message>
+	<wsdl:message name="consultarAlteracao">
+		<wsdl:part name="parameters" element="tic:consultarAlteracao">
+			<wsdl:documentation>Elemento que encapsula os dados de consulta
+				relativos à existência de modificações em um processo judicial.
+			</wsdl:documentation>
+		</wsdl:part>
+	</wsdl:message>
+	<wsdl:message name="consultarAlteracaoResposta">
+		<wsdl:part name="parameters" element="tic:consultarAlteracaoResposta">
+			<wsdl:documentation>Elemento que encapsula os dados de resposta
+				relativos à existência de alterações em um processo judicial.
+			</wsdl:documentation>
+		</wsdl:part>
+	</wsdl:message>
+	<wsdl:message name="confirmarRecebimento">
+		<wsdl:part name="parameters" element="tic:confirmarRecebimento">
+		</wsdl:part>
+	</wsdl:message>
+	<wsdl:message name="confirmarRecebimentoResposta">
+		<wsdl:part name="parameters" element="tic:confirmarRecebimentoResposta"></wsdl:part>
+	</wsdl:message>
+	<wsdl:portType name="servico-intercomunicacao-2.2.2">
+		<wsdl:operation name="consultarAvisosPendentes">
+			<wsdl:documentation>Operação destinada a permitir que o consultante
+				verifique a existência de avisos de comunicação processual pendentes
+				junto ao tribunal fornecedor do serviço.
+				Essa consulta poderá ser específica em relação a uma parte representada
+				ou, ainda, genérica, relativa aos processos em que o consultante
+				opera como órgão de representação processual (MP, defensoria
+				pública, advocacia pública, escritório de advocacia e advogado).
+				O retorno da consulta é um objeto do tipo
+				'tipoConsultarAvisosPendentesResposta', que contém o status de
+				sucesso da operação, mensagem relativa à sua concretização e uma
+				lista dos avisos pendentes de conhecimento pelo consultante, sendo
+				os avisos do tipo 'tipoAvisoComunicacaoPendente' definido no esquema
+				http://www.cnj.jus.br/intercomunicacao-2.2.2. Caso não haja aviso
+				pendente, será retornada uma lista de tamanho zero.
+			</wsdl:documentation>
+			<wsdl:input message="tic:consultarAvisosPendentes" />
+			<wsdl:output message="tic:consultarAvisosPendentesResposta" />
+		</wsdl:operation>
+		<wsdl:operation name="consultarTeorComunicacao">
+			<wsdl:documentation>Operação destinada a permitir a consulta a teor
+				específico de comunicação processual pendente. O retorno será um
+				objeto do tipo 'tipoConsultaTeorComunicacaoResposta', que conterá o
+				status de sucesso da operação, mensagem relativa à sua concretização
+				e uma lista de zero ou mais objetos do tipo
+				'tipoComunicacaoProcessual' definido no esquema
+				http://www.cnj.jus.br/intercomunicacao-2.2.2 </wsdl:documentation>
+			<wsdl:input message="tic:consultarTeorComunicacao"></wsdl:input>
+			<wsdl:output message="tic:consultarTeorComunicacaoResposta"></wsdl:output>
+		</wsdl:operation>
+		<wsdl:operation name="consultarProcesso">
+			<wsdl:documentation>Operação destinada a permitir a consulta a um
+				processo judicial.
+				Não é necessário que o consultante seja representante de qualquer das
+				partes componentes do processo.
+				A implementação deverá assegurar que o processo somente seja
+				retornado se o nível de sigilo interno permitir a consulta pelo
+				requerente.
+				A identificação do requerente somente será necessária quando
+				inexistente a autenticação e autorização pelo certificado cliente do
+				serviço.
+				A operação retornará objeto do tipo 'tipoConsultarProcessoResposta',
+				que contém, além dos dados básicos, um objeto do tipo
+				'tipoProcessoJudicial', definido pelo esquema
+				http://www.cnj.jus.br/intercomunicacao-2.2.2, caso o processo exista e
+				possa ser acessado pelo consultante.
+			</wsdl:documentation>
+			<wsdl:input message="tic:consultarProcesso"></wsdl:input>
+			<wsdl:output message="tic:consultarProcessoResposta"></wsdl:output>
+		</wsdl:operation>
+		<wsdl:operation name="entregarManifestacaoProcessual">
+			<wsdl:documentation>Operação destinada a permitir a entrega de
+				manifestação processual por órgão de representação processual ou por
+				advogado.
+				Essa operação também permite a entrega de petição inicial.
+			</wsdl:documentation>
+			<wsdl:input message="tic:entregarManifestacaoProcessual"></wsdl:input>
+			<wsdl:output message="tic:entregarManifestacaoProcessualResposta"></wsdl:output>
+		</wsdl:operation>
+		<wsdl:operation name="consultarAlteracao">
+			<wsdl:documentation>Operação destinada a permitir uma verificação
+				rápida quanto à existência de modificações havidas em um processo
+				judicial.
+			</wsdl:documentation>
+			<wsdl:input message="tic:consultarAlteracao"></wsdl:input>
+			<wsdl:output message="tic:consultarAlteracaoResposta"></wsdl:output>
+		</wsdl:operation>
+		<wsdl:operation name="confirmarRecebimento">
+			<wsdl:documentation>Operação destinada a permitir que um tribunal recebedor de um processo enviado confirme o integral recebimento junto ao tribunal remetente</wsdl:documentation>
+			<wsdl:input message="tic:confirmarRecebimento"></wsdl:input>
+			<wsdl:output message="tic:confirmarRecebimentoResposta"></wsdl:output>
+		</wsdl:operation>
+	</wsdl:portType>
+	<wsdl:binding name="servico-intercomunicacao-2.2.2SOAP"
+		type="tic:servico-intercomunicacao-2.2.2">
+		<soap:binding style="document"
+			transport="http://schemas.xmlsoap.org/soap/http" />
+		<wsdl:operation name="consultarAvisosPendentes">
+			<soap:operation
+				soapAction="http://www.cnj.jus.br/servico-intercomunicacao-2.2.2/consultarAvisosPendentes" />
+			<wsdl:input>
+				<soap:body use="literal" />
+			</wsdl:input>
+			<wsdl:output>
+				<soap:body use="literal" />
+			</wsdl:output>
+		</wsdl:operation>
+		<wsdl:operation name="consultarTeorComunicacao">
+			<soap:operation
+				soapAction="http://www.cnj.jus.br/servico-intercomunicacao-2.2.2/consultarTeorComunicacao" />
+			<wsdl:input>
+				<soap:body use="literal" />
+			</wsdl:input>
+			<wsdl:output>
+				<soap:body use="literal" />
+			</wsdl:output>
+		</wsdl:operation>
+		<wsdl:operation name="consultarProcesso">
+			<soap:operation
+				soapAction="http://www.cnj.jus.br/servico-intercomunicacao-2.2.2/consultarProcesso" />
+			<wsdl:input>
+				<soap:body use="literal" />
+			</wsdl:input>
+			<wsdl:output>
+				<soap:body use="literal" />
+			</wsdl:output>
+		</wsdl:operation>
+		<wsdl:operation name="entregarManifestacaoProcessual">
+			<soap:operation
+				soapAction="http://www.cnj.jus.br/servico-intercomunicacao-2.2.2/entregarManifestacaoProcessual" />
+			<wsdl:input>
+				<soap:body use="literal" />
+			</wsdl:input>
+			<wsdl:output>
+				<soap:body use="literal" />
+			</wsdl:output>
+		</wsdl:operation>
+		<wsdl:operation name="consultarAlteracao">
+			<soap:operation
+				soapAction="http://www.cnj.jus.br/servico-intercomunicacao-2.2.2/consultarAlteracao" />
+			<wsdl:input>
+				<soap:body use="literal" />
+			</wsdl:input>
+			<wsdl:output>
+				<soap:body use="literal" />
+			</wsdl:output>
+		</wsdl:operation>
+		<wsdl:operation name="confirmarRecebimento">
+			<soap:operation
+				soapAction="http://www.cnj.jus.br/servico-intercomunicacao-2.2.2/confirmarRecebimento" />
+			<wsdl:input>
+				<soap:body use="literal" />
+			</wsdl:input>
+			<wsdl:output>
+				<soap:body use="literal" />
+			</wsdl:output>
+		</wsdl:operation>
+		</wsdl:binding>
+	<wsdl:service name="servico-intercomunicacao-2.2.2">
+		<wsdl:port binding="tic:servico-intercomunicacao-2.2.2SOAP"
+			name="servico-intercomunicacao-2.2.2SOAP">
+			<soap:address location="http://www.cnj.jus.br" />
+		</wsdl:port>
+	</wsdl:service>
+</wsdl:definitions>

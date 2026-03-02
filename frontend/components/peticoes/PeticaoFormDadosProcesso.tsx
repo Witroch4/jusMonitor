@@ -14,16 +14,47 @@ import {
 } from '@/components/ui/select'
 import { TRIBUNAIS, JURISDICAO_ORDER, getTribunaisByJurisdicao } from '@/lib/data/tribunais'
 import { TIPO_PETICAO_LABELS } from '@/types/peticoes'
-import type { TribunalId, TipoPeticao, NovaPeticaoFormData } from '@/types/peticoes'
+import type { TribunalId, TipoPeticao, NovaPeticaoFormData, DadosBasicos } from '@/types/peticoes'
+
+// Comarcas mais usadas (codigoLocalidade PJe / MNI)
+const COMARCAS_COMUNS = [
+  { codigo: '0001330', nome: 'Maceió/AL' },
+  { codigo: '0001200', nome: 'Fortaleza/CE' },
+  { codigo: '0002900', nome: 'Salvador/BA' },
+  { codigo: '0002611', nome: 'Recife/PE' },
+  { codigo: '0002704', nome: 'Aracaju/SE' },
+  { codigo: '0002400', nome: 'Natal/RN' },
+  { codigo: '0002500', nome: 'João Pessoa/PB' },
+  { codigo: '0002200', nome: 'Teresina/PI' },
+  { codigo: '0002100', nome: 'São Luís/MA' },
+  { codigo: '0001500', nome: 'Belém/PA' },
+  { codigo: '0003200', nome: 'Manaus/AM' },
+  { codigo: '0001207', nome: 'Rio Branco/AC' },
+  { codigo: '0001100', nome: 'Porto Velho/RO' },
+  { codigo: '0001600', nome: 'Macapá/AP' },
+  { codigo: '0003100', nome: 'Belo Horizonte/MG' },
+  { codigo: '0003300', nome: 'Rio de Janeiro/RJ' },
+  { codigo: '0003500', nome: 'São Paulo/SP' },
+  { codigo: '0004300', nome: 'Porto Alegre/RS' },
+  { codigo: '0004200', nome: 'Florianópolis/SC' },
+  { codigo: '0004100', nome: 'Curitiba/PR' },
+  { codigo: '0007900', nome: 'Campo Grande/MS' },
+  { codigo: '0005100', nome: 'Cuiabá/MT' },
+  { codigo: '0005200', nome: 'Goiânia/GO' },
+  { codigo: '0005300', nome: 'Brasília/DF' },
+  { codigo: '0002800', nome: 'Vitória/ES' },
+]
 
 interface Props {
   formData: NovaPeticaoFormData
   onChange: (data: Partial<NovaPeticaoFormData>) => void
+  dadosBasicos?: DadosBasicos
+  onDadosBasicosChange?: (partial: Partial<DadosBasicos>) => void
 }
 
 const tribunaisPorJurisdicao = getTribunaisByJurisdicao()
 
-export function PeticaoFormDadosProcesso({ formData, onChange }: Props) {
+export function PeticaoFormDadosProcesso({ formData, onChange, dadosBasicos, onDadosBasicosChange }: Props) {
   const selectedTribunal = TRIBUNAIS.find((t) => t.id === formData.tribunalId)
   const isPeticaoInicial = formData.tipoPeticao === 'peticao_inicial'
 
@@ -132,16 +163,38 @@ export function PeticaoFormDadosProcesso({ formData, onChange }: Props) {
           </div>
         </div>
 
-        {/* Assunto */}
+        {/* Comarca / Localidade */}
         <div>
-          <Label className="text-sm font-medium mb-2 block">Assunto Principal</Label>
-          <Input
-            value={formData.assunto}
-            onChange={(e) => onChange({ assunto: e.target.value })}
-            placeholder="Ex: Indenização por Danos Morais..."
-            autoComplete="off"
-            name="assunto-principal"
-          />
+          <Label className="text-sm font-medium mb-2 block">
+            Comarca / Localidade
+            <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+              (domicílio do requerente — codigoLocalidade MNI)
+            </span>
+          </Label>
+          <Select
+            value={dadosBasicos?.codigoLocalidade ?? ''}
+            onValueChange={(v) => onDadosBasicosChange?.({ codigoLocalidade: v || undefined })}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Selecionar comarca..." />
+            </SelectTrigger>
+            <SelectContent className="max-h-72 overflow-y-auto">
+              {COMARCAS_COMUNS.map((c) => (
+                <SelectItem key={c.codigo} value={c.codigo}>
+                  <div className="flex items-center gap-2">
+                    <span>{c.nome}</span>
+                    <span className="text-[10px] font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+                      {c.codigo}
+                    </span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="mt-1.5 text-xs text-muted-foreground flex items-center gap-1">
+            <span className="material-symbols-outlined text-xs">info</span>
+            Deve corresponder ao domicílio do autor. Definido pela jurisdição no PJe.
+          </p>
         </div>
 
         {/* Descrição */}

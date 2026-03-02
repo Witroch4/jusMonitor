@@ -2,7 +2,7 @@
 
 ## Overview
 
-Implemented a complete real-time notification system for the JusMonitor CRM with WebSocket support, notification center UI component, and four types of notifications.
+Implemented a complete real-time notification system for the JusMonitorIA CRM with WebSocket support, notification center UI component, and four types of notifications.
 
 ## Components Implemented
 

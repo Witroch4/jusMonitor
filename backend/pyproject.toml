@@ -1,8 +1,8 @@
 [tool.poetry]
-name = "jusmonitor-backend"
+name = "jusmonitoria-backend"
 version = "0.1.0"
-description = "JusMonitor CRM Orquestrador - Backend API"
-authors = ["JusMonitor Team"]
+description = "JusMonitorIA CRM Orquestrador - Backend API"
+authors = ["JusMonitorIA Team"]
 readme = "README.md"
 packages = [{include = "app"}]
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# dev.sh - Script para gerenciar o ambiente de desenvolvimento do JusMonitor
+# dev.sh - Script para gerenciar o ambiente de desenvolvimento do JusMonitorIA
 # =============================================================================
 #
 # Tudo roda em Docker. Basta executar:
@@ -114,7 +114,9 @@ print_urls() {
   echo -e "    ./dev.sh logs              Ver logs de todos os servicos"
   echo -e "    ./dev.sh logs backend      Ver logs apenas do backend"
   echo -e "    ./dev.sh down              Parar tudo"
-  echo -e "    ./dev.sh build             Build COMPLETO (limpa, rebuild, migrate, seed)"
+  echo -e "    ./dev.sh build             Build COMPLETO (limpa frontend, rebuild, migrate)
+    ./dev.sh build hard        Build HARD: apaga BD + Redis + frontend, do zero
+    ./dev.sh build hard        Build HARD: apaga BD + Redis + frontend, do zero"
   echo -e "    ./dev.sh migrate           Rodar apenas migrations"
   echo -e "    ./dev.sh seed              Rodar apenas seed (super admin)"
   echo -e "    ./dev.sh clean             Remover containers + volumes (APAGA BD)"
@@ -122,7 +124,7 @@ print_urls() {
 }
 
 cmd_build() {
-  log_header "Build Completo (limpa, rebuild, migrate, seed)"
+  log_header "Build Completo (limpa frontend, rebuild, migrate)"
 
   # 1. Para tudo
   log_info "Parando containers..."
@@ -130,8 +132,8 @@ cmd_build() {
 
   # 2. Remove volumes de node_modules e .next (frontend rebuild limpo)
   log_info "Removendo volumes de cache do frontend..."
-  docker volume rm jusmonitor-frontend-node-modules 2>/dev/null || true
-  docker volume rm jusmonitor-frontend-next-cache 2>/dev/null || true
+  docker volume rm jusmonitoria-frontend-node-modules 2>/dev/null || true
+  docker volume rm jusmonitoria-frontend-next-cache 2>/dev/null || true
   log_success "Volumes do frontend removidos."
 
   # 3. Rebuild sem cache
@@ -147,7 +149,7 @@ cmd_build() {
   log_info "Aguardando PostgreSQL ficar pronto..."
   local retries=0
   local max_retries=30
-  until dc exec postgres pg_isready -U jusmonitor -d jusmonitor -q 2>/dev/null; do
+  until dc exec postgres pg_isready -U jusmonitoria -d jusmonitoria -q 2>/dev/null; do
     retries=$((retries + 1))
     if [ $retries -ge $max_retries ]; then
       log_error "PostgreSQL nao ficou pronto em ${max_retries}s"
@@ -169,18 +171,9 @@ cmd_build() {
   done
   log_success "Redis pronto."
 
-  # 6. Roda migrations via container do backend (one-shot, com acesso ao postgres)
-  log_info "Rodando migrations (alembic upgrade head)..."
-  dc run --rm backend alembic upgrade head
-  log_success "Migrations aplicadas."
-
-  # 7. Roda seed do super admin + schedules
-  log_info "Rodando seed (super admin + worker schedules)..."
-  dc run --rm backend python -m scripts.create_super_admin
-  log_success "Seed concluido."
-
-  # 8. Sobe todos os servicos
-  log_info "Subindo todos os servicos..."
+  # 6. Sobe todos os servicos — o script db_prepare roda automaticamente
+  # no startup do backend (migrations + seeds + TPU sync) antes do uvicorn
+  log_info "Subindo todos os serviços (db_prepare cuida do resto)..."
 
   # Configura a trap para parar os containers graciosamente ao pressionar Ctrl+C
   trap 'echo -e "\n"; log_warn "Interrompido. Parando containers graciosamente..."; dc stop; log_success "Containers parados."; exit 0' INT
@@ -192,6 +185,77 @@ cmd_build() {
   log_info "Exibindo logs (Ctrl+C para PARAR os containers graciosamente)..."
 
   # Exibe os logs e aguarda
+  dc logs -f --tail=100
+}
+
+cmd_build_hard() {
+  log_header "Build HARD (apaga BD + Redis + frontend, rebuild do zero)"
+
+  log_warn "Isso vai APAGAR todos os dados do banco e Redis!"
+  read -p "Tem certeza? (y/N): " confirm
+  if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+    log_info "Operação cancelada."
+    exit 0
+  fi
+
+  # 1. Para tudo
+  log_info "Parando containers..."
+  dc down --remove-orphans 2>/dev/null || true
+
+  # 2. Remove TODOS os volumes
+  log_info "Removendo todos os volumes (frontend + postgres + redis)..."
+  docker volume rm jusmonitoria-frontend-node-modules 2>/dev/null || true
+  docker volume rm jusmonitoria-frontend-next-cache 2>/dev/null || true
+  docker volume rm jusmonitoria-postgres-data 2>/dev/null || true
+  docker volume rm jusmonitoria-redis-data 2>/dev/null || true
+  log_success "Todos os volumes removidos — banco será criado do zero."
+
+  # 3. Rebuild sem cache
+  log_info "Rebuilding imagens Docker..."
+  dc build
+  log_success "Imagens criadas."
+
+  # 4. Sobe apenas infra primeiro (postgres + redis)
+  log_info "Subindo PostgreSQL e Redis..."
+  dc up -d postgres redis
+
+  # 5. Aguarda health checks da infra
+  log_info "Aguardando PostgreSQL ficar pronto..."
+  local retries=0
+  local max_retries=30
+  until dc exec postgres pg_isready -U jusmonitoria -d jusmonitoria -q 2>/dev/null; do
+    retries=$((retries + 1))
+    if [ $retries -ge $max_retries ]; then
+      log_error "PostgreSQL nao ficou pronto em ${max_retries}s"
+      exit 1
+    fi
+    sleep 1
+  done
+  log_success "PostgreSQL pronto."
+
+  log_info "Aguardando Redis ficar pronto..."
+  retries=0
+  until dc exec redis redis-cli ping 2>/dev/null | grep -q PONG; do
+    retries=$((retries + 1))
+    if [ $retries -ge $max_retries ]; then
+      log_error "Redis nao ficou pronto em ${max_retries}s"
+      exit 1
+    fi
+    sleep 1
+  done
+  log_success "Redis pronto."
+
+  # 6. Sobe todos os serviços — db_prepare roda migrate + seed + TPU do zero
+  log_info "Subindo todos os serviços (db_prepare cuida do resto)..."
+
+  trap 'echo -e "\n"; log_warn "Interrompido. Parando containers graciosamente..."; dc stop; log_success "Containers parados."; exit 0' INT
+
+  dc up -d
+  log_success "Build hard finalizado!"
+
+  print_urls
+  log_info "Exibindo logs (Ctrl+C para PARAR os containers graciosamente)..."
+
   dc logs -f --tail=100
 }
 
@@ -210,7 +274,9 @@ cmd_migrate() {
 cmd_seed() {
   log_header "Rodando seed"
   dc exec backend python -m scripts.create_super_admin
-  log_success "Seed concluido."
+  log_success "Seed super admin concluido."
+  dc exec backend python -m db.seeds.tenant
+  log_success "Seed usuarios demo concluido."
 }
 
 cmd_clean() {
@@ -228,7 +294,7 @@ cmd_clean() {
 cmd_help() {
   echo -e "${BOLD}${CYAN}"
   echo "╔══════════════════════════════════════════════════════════════╗"
-  echo "║          🚀  JusMonitor - Dev Environment                    ║"
+  echo "║          🚀  JusMonitorIA - Dev Environment                    ║"
   echo "╚══════════════════════════════════════════════════════════════╝"
   echo -e "${NC}"
   echo -e "  ${BOLD}Uso:${NC} ./dev.sh [comando]"
@@ -238,7 +304,8 @@ cmd_help() {
   echo -e "    ${GREEN}down${NC}              Para todos os containers"
   echo -e "    ${GREEN}restart${NC}           Reinicia todos os containers"
   echo -e "    ${GREEN}logs [serviço]${NC}    Mostra logs e 'prende' a tela"
-  echo -e "    ${GREEN}build${NC}             Build COMPLETO: limpa node_modules, rebuild, migrate, seed"
+  echo -e "    ${GREEN}build${NC}             Build COMPLETO: limpa frontend, rebuild, migrate"
+  echo -e "    ${GREEN}build hard${NC}        Build HARD: apaga BD + Redis + frontend, tudo do zero"
   echo -e "    ${GREEN}build-quick${NC}       Rebuild rapido das imagens (sem limpar cache)"
   echo -e "    ${GREEN}migrate${NC}           Roda apenas migrations (alembic upgrade head)"
   echo -e "    ${GREEN}seed${NC}              Roda apenas seed (super admin + schedules)"
@@ -257,7 +324,13 @@ case "${1:-}" in
   down)         cmd_down ;;
   restart)      cmd_restart ;;
   logs)         shift; cmd_logs "$@" ;;
-  build)        cmd_build ;;
+  build)
+    if [[ "${2:-}" == "hard" ]]; then
+      cmd_build_hard
+    else
+      cmd_build
+    fi
+    ;;
   build-quick)  cmd_build_quick ;;
   migrate)      cmd_migrate ;;
   seed)         cmd_seed ;;

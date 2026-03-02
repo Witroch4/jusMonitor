@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the implementation of observability and monitoring features for the JusMonitor CRM Orquestrador backend, completed as part of Task 20.
+This document describes the implementation of observability and monitoring features for the JusMonitorIA CRM Orquestrador backend, completed as part of Task 20.
 
 ## Components Implemented
 
@@ -160,7 +160,7 @@ ai_request_duration_seconds.labels(
     "redis": true
   },
   "timestamp": "2024-01-15T10:30:00Z",
-  "service": "jusmonitor-backend",
+  "service": "jusmonitoria-backend",
   "version": "0.1.0"
 }
 ```
@@ -308,7 +308,7 @@ Add the following to your `prometheus.yml`:
 
 ```yaml
 scrape_configs:
-  - job_name: 'jusmonitor-backend'
+  - job_name: 'jusmonitoria-backend'
     scrape_interval: 15s
     static_configs:
       - targets: ['backend:8000']
@@ -359,7 +359,7 @@ services:
 ```yaml
 # promtail-config.yml
 scrape_configs:
-  - job_name: jusmonitor
+  - job_name: jusmonitoria
     docker_sd_configs:
       - host: unix:///var/run/docker.sock
     relabel_configs:

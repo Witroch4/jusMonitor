@@ -15,7 +15,7 @@ const playfair = Playfair_Display({
 })
 
 export const metadata: Metadata = {
-  title: 'JusMonitor - CRM Jurídico Inteligente',
+  title: 'JusMonitorIA - CRM Jurídico Inteligente',
   description: 'Sistema de gestão e monitoramento de processos jurídicos com IA',
 }
 

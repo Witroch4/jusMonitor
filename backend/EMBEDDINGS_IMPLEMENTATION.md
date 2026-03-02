@@ -2,7 +2,7 @@
 
 ## Overview
 
-Successfully implemented a complete asynchronous embeddings system for semantic search in the JusMonitor CRM. The system enables intelligent search across case movements and timeline events using OpenAI embeddings and pgvector with HNSW indexes.
+Successfully implemented a complete asynchronous embeddings system for semantic search in the JusMonitorIA CRM. The system enables intelligent search across case movements and timeline events using OpenAI embeddings and pgvector with HNSW indexes.
 
 ## Components Implemented
 

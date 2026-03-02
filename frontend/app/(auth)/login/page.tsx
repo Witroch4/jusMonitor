@@ -509,7 +509,7 @@ export default function LoginPage() {
           {/* Top */}
           <div className="login-left-top">
             <div className="login-logo-icon">J</div>
-            <span className="login-logo-name">JusMonitor</span>
+            <span className="login-logo-name">JusMonitorIA</span>
           </div>
 
           {/* Center */}
@@ -555,7 +555,7 @@ export default function LoginPage() {
             {/* Mobile logo */}
             <div className="login-mobile-logo">
               <div className="login-logo-icon">J</div>
-              <span className="login-logo-name">JusMonitor</span>
+              <span className="login-logo-name">JusMonitorIA</span>
             </div>
 
             <h1 className="login-form-title">Bem-vindo de volta</h1>

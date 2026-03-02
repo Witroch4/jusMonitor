@@ -118,6 +118,14 @@ async def run_seeds(
     
     # 1. Tenant and users (required for other seeds)
     if tenant:
+        # Create super admin and platform tenant first
+        from scripts.create_super_admin import create_platform_tenant, create_super_admin, create_default_schedules
+        click.echo("\n🔒 Setting up Super Admin...")
+        platform_tenant = await create_platform_tenant(session)
+        super_admin = await create_super_admin(session, platform_tenant)
+        await create_default_schedules(session)
+        click.echo("✓ Super Admin setup complete")
+        
         tenant_data = await run_tenant_seed(session)
         user_ids = [u.id for u in tenant_data["users"]]
     else:

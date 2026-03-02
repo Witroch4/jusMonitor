@@ -1,6 +1,6 @@
-# Testes E2E - JusMonitor Frontend
+# Testes E2E - JusMonitorIA Frontend
 
-Este diretório contém os testes End-to-End (E2E) do frontend do JusMonitor, implementados com Playwright.
+Este diretório contém os testes End-to-End (E2E) do frontend do JusMonitorIA, implementados com Playwright.
 
 ## Estrutura
 

@@ -65,6 +65,10 @@ async def lifespan(app: FastAPI):
         logger.info("task_scheduler_started")
         shutdown_handler.register_shutdown_callback(stop_scheduler)
 
+    # Garante que as tabelas TPU estejam populadas; se vazias, dispara sync em background
+    from app.workers.tasks.tpu_sync import ensure_tpu_populated
+    await ensure_tpu_populated()
+
     yield
     
     # Shutdown
@@ -100,11 +104,11 @@ async def lifespan(app: FastAPI):
 
 # Create FastAPI application
 app = FastAPI(
-    title="JusMonitor CRM Orquestrador",
+    title="JusMonitorIA CRM Orquestrador",
     description="""
 ## Sistema Multi-Tenant de Gestão Jurídica com IA
 
-O JusMonitor é uma plataforma completa que integra:
+O JusMonitorIA é uma plataforma completa que integra:
 
 * **CRM Inteligente**: Gestão de leads e clientes com qualificação automática por IA
 * **Monitoramento Processual**: Sincronização automática com DataJud (API do CNJ)
@@ -162,15 +166,15 @@ Endpoints de listagem suportam paginação via query parameters:
     redoc_url="/redoc",
     openapi_url="/openapi.json",
     contact={
-        "name": "JusMonitor Support",
-        "email": "suporte@jusmonitor.com",
-        "url": "https://jusmonitor.com/support",
+        "name": "JusMonitorIA Support",
+        "email": "suporte@jusmonitoria.com",
+        "url": "https://jusmonitoria.com/support",
     },
     license_info={
         "name": "Proprietary",
-        "url": "https://jusmonitor.com/license",
+        "url": "https://jusmonitoria.com/license",
     },
-    terms_of_service="https://jusmonitor.com/terms",
+    terms_of_service="https://jusmonitoria.com/terms",
     openapi_tags=[
         {
             "name": "auth",
@@ -310,7 +314,7 @@ async def health_check():
 async def root():
     """Root endpoint."""
     return {
-        "message": "JusMonitor CRM Orquestrador API",
+        "message": "JusMonitorIA CRM Orquestrador API",
         "version": "0.1.0",
         "docs": "/docs",
     }
@@ -370,6 +374,21 @@ from app.api.v1.endpoints.tribunais import router as tribunais_router
 
 app.include_router(peticoes_router, prefix=settings.api_v1_prefix, tags=["peticoes"])
 app.include_router(tribunais_router, prefix=settings.api_v1_prefix, tags=["tribunais"])
+
+# Processos (consulta MNI em tempo real) endpoints
+from app.api.v1.endpoints.processos import router as processos_router
+
+app.include_router(processos_router, prefix=settings.api_v1_prefix, tags=["processos"])
+
+# Processos Monitorados (monitoramento via DataJud) endpoints
+from app.api.v1.endpoints.processos_monitorados import router as processos_monitorados_router
+
+app.include_router(processos_monitorados_router, prefix=settings.api_v1_prefix, tags=["processos-monitorados"])
+
+# TPU (Tabelas Processuais Unificadas) endpoints
+from app.api.v1.endpoints.tpu import router as tpu_router
+
+app.include_router(tpu_router, prefix=settings.api_v1_prefix, tags=["tpu"])
 
 # Serve static files (avatars, etc.)
 import os

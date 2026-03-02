@@ -30,7 +30,7 @@ async def liveness_check() -> dict[str, Any]:
     return {
         "status": "alive",
         "timestamp": datetime.utcnow().isoformat(),
-        "service": "jusmonitor-backend",
+        "service": "jusmonitoria-backend",
         "version": "0.1.0",
     }
 
@@ -97,7 +97,7 @@ async def readiness_check(
         "status": "ready",
         "checks": checks,
         "timestamp": datetime.utcnow().isoformat(),
-        "service": "jusmonitor-backend",
+        "service": "jusmonitoria-backend",
         "version": "0.1.0",
     }
 
@@ -165,7 +165,7 @@ async def startup_check(
         "status": "started",
         "checks": checks,
         "timestamp": datetime.utcnow().isoformat(),
-        "service": "jusmonitor-backend",
+        "service": "jusmonitoria-backend",
         "version": "0.1.0",
     }
 

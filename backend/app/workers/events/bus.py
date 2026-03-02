@@ -18,7 +18,7 @@ logger = structlog.get_logger(__name__)
 _event_handlers: dict[EventType, list[Callable]] = {}
 
 # Dead letter queue configuration
-DLQ_KEY_PREFIX = "jusmonitor:dlq"
+DLQ_KEY_PREFIX = "jusmonitoria:dlq"
 DLQ_MAX_RETRIES = 3
 DLQ_RETRY_DELAY_SECONDS = 60
 

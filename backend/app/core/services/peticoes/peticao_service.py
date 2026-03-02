@@ -53,6 +53,11 @@ class PeticaoService:
         if data.tipo_peticao == TipoPeticao.PETICAO_INICIAL and not processo_numero:
             processo_numero = "00000000000000000000"
 
+        # Serialize dados_basicos to JSON if provided
+        dados_basicos_json = None
+        if data.dados_basicos:
+            dados_basicos_json = data.dados_basicos.model_dump(mode="json")
+
         repo = PeticaoRepository(session, tenant_id)
         pet = await repo.create(
             processo_numero=processo_numero,
@@ -63,6 +68,7 @@ class PeticaoService:
             certificado_id=data.certificado_id,
             criado_por=criado_por,
             status=PeticaoStatus.RASCUNHO,
+            dados_basicos_json=dados_basicos_json,
         )
         await self._record_evento(
             session, tenant_id, pet.id,
@@ -80,6 +86,7 @@ class PeticaoService:
         tipo_documento: TipoDocumento,
         ordem: int,
         crypto: CertificateCryptoService,
+        sigiloso: bool = False,
     ) -> PeticaoDocumento:
         """Validate PDF, compute hash, encrypt, and store document."""
         # Validate PDF header
@@ -102,6 +109,7 @@ class PeticaoService:
             conteudo_encrypted=encrypted,
             hash_sha256=hash_sha256,
             status=DocumentoStatus.UPLOADED,
+            sigiloso=sigiloso,
         )
         return doc
 

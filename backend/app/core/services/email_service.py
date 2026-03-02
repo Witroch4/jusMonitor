@@ -97,12 +97,12 @@ class EmailService:
         """
         verify_url = f"{settings.frontend_url}/verify-email?token={token}"
         
-        subject = "Confirme seu cadastro no JusMonitor"
+        subject = "Confirme seu cadastro no JusMonitorIA"
         
         text_content = f"""
         Olá {name},
         
-        Obrigado por se cadastrar no JusMonitor. Para concluir seu registro, \
+        Obrigado por se cadastrar no JusMonitorIA. Para concluir seu registro, \
         por favor acesse o link abaixo para verificar seu e-mail:
         
         {verify_url}
@@ -112,7 +112,7 @@ class EmailService:
         
         html_content = f"""
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
-            <h2 style="color: #D4AF37;">Bem-vindo ao JusMonitor!</h2>
+            <h2 style="color: #D4AF37;">Bem-vindo ao JusMonitorIA!</h2>
             <p>Olá <strong>{name}</strong>,</p>
             <p>Obrigado por escolher nossa plataforma jurídica premium. Para podermos liberar seu acesso completo, por favor, clique no botão abaixo para confirmar seu endereço de e-mail.</p>
             

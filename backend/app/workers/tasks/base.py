@@ -219,7 +219,7 @@ def with_rate_limit(
             try:
                 # Generate rate limit key
                 prefix = key_prefix or func.__name__
-                rate_limit_key = f"jusmonitor:ratelimit:{prefix}"
+                rate_limit_key = f"jusmonitoria:ratelimit:{prefix}"
                 
                 # Check current count
                 current_count = await redis.get(rate_limit_key)
@@ -295,7 +295,7 @@ class TaskConcurrencyLimiter:
         self.redis = Redis.from_url(str(settings.redis_url))
         
         start_time = datetime.utcnow()
-        semaphore_key = f"jusmonitor:concurrency:{self.key_prefix}"
+        semaphore_key = f"jusmonitoria:concurrency:{self.key_prefix}"
         
         while True:
             # Try to acquire slot
@@ -328,7 +328,7 @@ class TaskConcurrencyLimiter:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Release concurrency slot."""
         if self.redis:
-            semaphore_key = f"jusmonitor:concurrency:{self.key_prefix}"
+            semaphore_key = f"jusmonitoria:concurrency:{self.key_prefix}"
             await self.redis.decr(semaphore_key)
             
             logger.info(

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Successfully implemented graceful shutdown functionality for the JusMonitor CRM Orquestrador backend. The system now properly handles SIGTERM and SIGINT signals to ensure clean shutdown during deployments, restarts, or container orchestration events.
+Successfully implemented graceful shutdown functionality for the JusMonitorIA CRM Orquestrador backend. The system now properly handles SIGTERM and SIGINT signals to ensure clean shutdown during deployments, restarts, or container orchestration events.
 
 ## Implementation Details
 

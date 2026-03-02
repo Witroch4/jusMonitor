@@ -295,7 +295,7 @@ class TestDeadLetterQueue:
 
             # Verify DLQ key format
             dlq_key = call_args[0][0]
-            assert dlq_key.startswith("jusmonitor:dlq:")
+            assert dlq_key.startswith("jusmonitoria:dlq:")
             assert EventType.LEAD_CREATED.value in dlq_key
 
     @pytest.mark.asyncio
@@ -322,7 +322,7 @@ class TestDeadLetterQueue:
 
             # Mock Redis keys and zrevrange
             mock_redis.keys.return_value = [
-                f"jusmonitor:dlq:{EventType.LEAD_CREATED.value}"
+                f"jusmonitoria:dlq:{EventType.LEAD_CREATED.value}"
             ]
             mock_redis.zrevrange.return_value = [json.dumps(dlq_entry).encode()]
 
@@ -357,7 +357,7 @@ class TestDeadLetterQueue:
 
             # Mock Redis operations
             mock_redis.keys.return_value = [
-                f"jusmonitor:dlq:{EventType.LEAD_CREATED.value}"
+                f"jusmonitoria:dlq:{EventType.LEAD_CREATED.value}"
             ]
             mock_redis.zrange.return_value = [json.dumps(dlq_entry).encode()]
 
