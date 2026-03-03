@@ -26,12 +26,21 @@ class LoggingMiddleware:
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
 
+    # Paths that generate too much noise and don't need request logging
+    SILENT_PATHS = frozenset({"/health", "/metrics", "/readiness", "/liveness"})
+
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
 
         request = Request(scope, receive)
+
+        # Skip verbose logging for health/probe endpoints
+        if request.url.path in self.SILENT_PATHS:
+            await self.app(scope, receive, send)
+            return
+
         request_id = str(uuid.uuid4())
 
         clear_context()

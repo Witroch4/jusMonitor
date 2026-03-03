@@ -1,5 +1,6 @@
 """FastAPI application with Taskiq integration."""
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -23,6 +24,13 @@ from app.workers.broker import broker
 # Configure structured logging
 configure_logging()
 logger = get_logger(__name__)
+
+# Suppress noisy health-check lines from uvicorn access log
+class _HealthCheckFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:  # noqa: A003
+        return "GET /health" not in record.getMessage()
+
+logging.getLogger("uvicorn.access").addFilter(_HealthCheckFilter())
 
 
 @asynccontextmanager

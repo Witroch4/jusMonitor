@@ -1,4 +1,12 @@
-"""Base scraper with Bright Data proxy and playwright-stealth integration."""
+"""Base scraper with Bright Data proxy integration.
+
+NOTE: playwright-stealth is NOT used because it breaks RichFaces A4J
+initialization. The stealth library overrides JSON.parse (or similar),
+which prevents A4J.AJAX.Submit from loading. Confirmed by test on
+02/03/2026: without stealth A4J=True immediately, with stealth A4J=False
+even after 17s wait. The hCaptcha console error also confirms:
+"Custom JSON polyfill detected".
+"""
 
 import logging
 import random
@@ -7,7 +15,6 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page, Playwright
-from playwright_stealth import stealth_async
 
 from app.config import settings
 
@@ -70,7 +77,6 @@ class BaseScraper:
         )
 
         page = await context.new_page()
-        await stealth_async(page)
 
         session = BrowserSession(
             playwright=pw, browser=browser, context=context, page=page
@@ -83,8 +89,8 @@ class BaseScraper:
             await pw.stop()
 
     async def apply_stealth(self, page: Page) -> None:
-        """Apply stealth to a new page/popup (must be called on every new tab)."""
-        await stealth_async(page)
+        """No-op. Stealth is disabled because it breaks A4J/RichFaces."""
+        pass
 
     def _build_proxy_config(self) -> dict | None:
         """Build Bright Data proxy config with sticky session."""

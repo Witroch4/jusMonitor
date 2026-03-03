@@ -1,7 +1,59 @@
 # JusMonitorIA — Scraper Service: Implementação e Próximos Passos
 
 > **Data:** 02/03/2026
-> **Status:** Implementado ✅ | Teste E2E pendente ⏳
+> **Status:** ✅ FUNCIONANDO — 7/7 processos, partes, movimentações e PDFs extraídos com sucesso
+
+---
+
+## 0. Resultados dos Testes (02/03/2026) — LEIA PRIMEIRO
+
+### 0.1 Teste Final — Docker headless SEM stealth, SEM proxy
+
+**Resultado: ✅ FUNCIONA COMPLETAMENTE**
+
+| Passo | Resultado |
+|-------|-----------|
+| GET listView.seam | ✅ Página carrega |
+| Preencher OAB 50784 + UF CE | ✅ Campos preenchidos |
+| `executarPesquisa()` via JS | ✅ A4J.AJAX.Submit dispara, **7 resultados em 2s** |
+| Parse da lista | ✅ 7 processos com classe, assunto, partes, última movimentação |
+| Ver detalhes (7 abas) | ✅ Partes detalhadas (15-23/processo), movimentações (7-22/processo) |
+| Download PDFs | ✅ 8 PDFs baixados via "Gerar PDF" |
+| Upload S3 | ✅ Todos os PDFs uploaded para `objstoreapi.witdev.com.br` |
+
+### 0.2 Root Cause: playwright-stealth quebrava A4J
+
+**Confirmado por teste A/B:**
+- **SEM stealth** → `A4J=True` imediatamente após page load
+- **COM stealth** → `A4J=False` mesmo após 17s de espera
+
+O `playwright-stealth` injeta um polyfill de JSON que o hCaptcha detecta
+(`"[hCaptcha] Custom JSON polyfill detected"`) e que impede o RichFaces
+A4J de inicializar. **Solução: remover stealth** — o site é consulta
+pública e não tem proteção anti-bot.
+
+### 0.3 Root Cause: onclick do botão bloqueava A4J.AJAX.Submit
+
+O `onclick` do botão Pesquisar é:
+```
+return executarReCaptcha();;A4J.AJAX.Submit(...)
+```
+
+Quando `executarReCaptcha()` retorna truthy, o `return` sai do handler
+**antes** de `A4J.AJAX.Submit` executar. A função `executarPesquisa()`
+(chamada internamente por `executarReCaptcha` quando captcha está
+desabilitado) chama `A4J.AJAX.Submit` diretamente.
+
+**Solução:** chamar `executarPesquisa()` via JS em vez de `click()`.
+
+### 0.4 Proxy Bright Data — NÃO necessário
+
+O scraper funciona sem proxy (acesso direto ao site). O Bright Data em
+modo Immediate Access (sem KYC) bloqueia POSTs (402). Como o site não
+tem rate limiting agressivo para consulta pública, proxy não é necessário
+para o fluxo atual.
+
+---
 
 ---
 
@@ -91,127 +143,50 @@ Baseado no **relatório de análise** `docs/webscraping-pje1g-trf1-relatorio.md`
 
 ---
 
-## 3. Problema Atual: A4J não carrega no Playwright headless
+## 3. Problemas Resolvidos
 
-### 3.1 Root cause
+### 3.1 playwright-stealth quebrava A4J (RESOLVIDO)
 
-O botão de pesquisa do TRF1 usa `A4J.AJAX.Submit()` (biblioteca RichFaces). No navegador real, o script `A4J.js` é carregado normalmente. No Playwright headless, **o script A4J não está sendo inicializado** (`A4J is not defined`), então o clique no botão não dispara o POST AJAX.
+O `playwright-stealth` injetava um JSON polyfill que impedia o RichFaces A4J de inicializar.
+**Fix:** Removido `stealth_async()` de `base.py`. O site é consulta pública sem anti-bot.
 
-Cadeia de chamadas:
-```
-onclick: return executarReCaptcha()
-              ↓
-         executarPesquisa()     ← captcha desabilitado (if false {...})
-              ↓
-         A4J.AJAX.Submit('fPP', ...)  ← FALHA: A4J undefined
-```
+### 3.2 onclick do botão bloqueava A4J.AJAX.Submit (RESOLVIDO)
 
-### 3.2 O que foi testado
+O `onclick` do botão faz `return executarReCaptcha();;A4J.AJAX.Submit(...)` — o `return`
+sai antes do A4J executar. **Fix:** Chamar `executarPesquisa()` via JS diretamente.
 
-| Abordagem | Resultado |
-|-----------|-----------|
-| `select_option(label=uf)` | Falha: Select2 não usa select nativo da mesma forma |
-| `wait_until="domcontentloaded"` | Página carrega mas A4J não inicializa |
-| `wait_until="load"` | A4J ainda undefined após 15s |
-| Chamar `executarPesquisa()` via `page.evaluate()` | `ReferenceError: A4J is not defined` |
-| Override `executarReCaptcha` para retornar `true` | Não resolve (problema é A4J, não captcha) |
-| Form submit nativo (`form.submit()`) | A testar (ver seção 4) |
+### 3.3 CSS selector com `:` nos IDs JSF (RESOLVIDO)
 
-### 3.3 O que funciona
+`#fPP:Decoration:estadoComboOAB` falhava porque `:` é interpretado como pseudo-class CSS.
+**Fix:** Usar `[id='fPP:Decoration:estadoComboOAB']` (attribute selector).
 
-- ✅ Chromium lança corretamente
-- ✅ Página carrega (título "Consulta pública · Justiça Federal da 1ª Região")
-- ✅ Elementos do formulário existem e são preenchíveis
-- ✅ UF é setada corretamente via JS (`estadoComboOAB.value = '5'`)
-- ✅ Proxy Bright Data funciona (curl retorna 200)
-- ✅ S3 client configurado corretamente (credenciais em .env)
-- ✅ Download de PDFs via `expect_download()` implementado
-- ✅ Upload S3 implementado
+### 3.4 wait_for_selector com rows invisíveis (RESOLVIDO)
+
+`wait_for_selector("tbody tr")` esperava visibilidade, mas rows da tabela podem estar hidden.
+**Fix:** Usar `state="attached"` em vez do default `state="visible"`.
 
 ---
 
-## 4. Próximos Passos (E2E)
+## 4. Próximos Passos
 
-### 4.1 Solução recomendada: POST direto sem A4J
+### 4.1 Integrar com endpoint backend
 
-O relatório `docs/webscraping-pje1g-trf1-relatorio.md` (seção 3.1) documenta os parâmetros exatos do POST de pesquisa:
-
-```
-POST /consultapublica/ConsultaPublica/listView.seam
-Content-Type: application/x-www-form-urlencoded
-
-fPP:Decoration:numeroOAB       = 50784
-fPP:Decoration:letraOAB        = (vazio)
-fPP:Decoration:estadoComboOAB  = CE
-fPP:pesquisar                  = fPP:pesquisar
-javax.faces.ViewState          = {ViewState obtido no GET inicial}
+Testar o fluxo E2E via API:
+```bash
+POST /api/v1/processos/consultar-oab
+{"oab_numero": "50784", "oab_uf": "CE", "tribunal": "trf1"}
 ```
 
-**Implementação sugerida** em `trf1.py` para substituir o click no botão:
+### 4.2 Melhorar parsing de partes
 
-```python
-# 1. GET inicial para obter ViewState e cookies
-await page.goto(TRF1_URL, wait_until="domcontentloaded", timeout=90_000)
-await asyncio.sleep(2)
+Ainda há entradas espúrias como "Ativo" (status da parte) sendo parseadas como nomes.
+Refinar a lógica em `_extract_parties()`.
 
-view_state = await page.evaluate(
-    "() => document.querySelector('input[name=\"javax.faces.ViewState\"]')?.value"
-)
+### 4.3 Adicionar outros tribunais
 
-# 2. POST direto (bypass A4J)
-response = await page.context.request.post(
-    TRF1_URL,
-    headers={
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Referer": TRF1_URL,
-    },
-    data=(
-        f"fPP%3ADecoration%3AnumeroOAB={oab_numero}"
-        f"&fPP%3ADecoration%3AletraOAB="
-        f"&fPP%3ADecoration%3AestadoComboOAB={oab_uf}"
-        f"&fPP%3Apesquisar=fPP%3Apesquisar"
-        f"&javax.faces.ViewState={urllib.parse.quote(view_state)}"
-    ),
-)
+Implementar scrapers para TJCE, TRF5-JFCE seguindo o mesmo padrão de `trf1.py`.
 
-# 3. Parse o HTML retornado
-html_content = await response.text()
-await page.set_content(html_content)
-```
-
-### 4.2 Alternativa: form.submit() via JS
-
-```python
-# Adicionar o campo de submit ao form e enviar nativamente
-await page.evaluate('''([vs]) => {
-    const form = document.getElementById("fPP");
-
-    // Setar valores
-    document.getElementById("fPP:Decoration:numeroOAB").value = "50784";
-    const sel = document.getElementById("fPP:Decoration:estadoComboOAB");
-    for (const o of sel.options) { if (o.text === "CE") { sel.value = o.value; break; } }
-
-    // Adicionar campo que o server espera
-    const inp = document.createElement("input");
-    inp.type = "hidden"; inp.name = "fPP:pesquisar"; inp.value = "fPP:pesquisar";
-    form.appendChild(inp);
-
-    form.submit();
-}''', [view_state])
-
-await page.wait_for_load_state("domcontentloaded", timeout=30_000)
-```
-
-### 4.3 Passos para completar o E2E
-
-1. **Corrigir o submit da pesquisa** (POST direto ou form.submit) — ver 4.1/4.2
-2. **Verificar que 7 processos aparecem** para OAB 50784/CE
-3. **Clicar "Ver detalhes"** do primeiro processo — verificar que nova aba abre
-4. **Verificar extração de partes/movimentações** — log dos dados
-5. **Clicar "Visualizar documentos"** — verificar nova aba com viewer HTML
-6. **Baixar PDF via "Gerar PDF"** — verificar bytes > 0
-7. **Verificar upload S3** — checar URL `https://objstoreapi.witdev.com.br/jusmonitoria/processos/{numero}/documentos/`
-8. **Rodar via API** — `POST /api/v1/processos/consultar-oab` com OAB 50784/CE
+---
 
 ---
 

@@ -7,7 +7,18 @@ from fastapi import FastAPI, HTTPException
 from app.schemas import ConsultarOABRequest, ConsultarOABResponse
 from app.scrapers.trf1 import consultar_oab_trf1
 
+
+class _HealthCheckFilter(logging.Filter):
+    """Suppress noisy health-check access log lines from uvicorn."""
+
+    def filter(self, record: logging.LogRecord) -> bool:  # noqa: A003
+        msg = record.getMessage()
+        return "GET /health" not in msg
+
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+# Apply filter to uvicorn access logger so /health hits don't flood the console
+logging.getLogger("uvicorn.access").addFilter(_HealthCheckFilter())
 logger = logging.getLogger(__name__)
 
 app = FastAPI(

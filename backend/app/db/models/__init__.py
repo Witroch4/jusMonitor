@@ -36,6 +36,7 @@ from app.db.models.peticao import (
 )
 from app.db.models.tpu import TpuClasse, TpuAssunto
 from app.db.models.processo_monitorado import ProcessoMonitorado
+from app.db.models.user_integration import UserIntegration, IntegrationType
 
 __all__ = [
     "Tenant",
@@ -76,4 +77,6 @@ __all__ = [
     "TpuClasse",
     "TpuAssunto",
     "ProcessoMonitorado",
+    "UserIntegration",
+    "IntegrationType",
 ]

@@ -63,49 +63,106 @@ async def consultar_oab_trf1(oab_numero: str, oab_uf: str) -> dict:
 
         try:
             # ── PHASE 1: SEARCH ──
-            logger.info("trf1_navigating", extra={"oab": oab_numero, "uf": oab_uf})
+            logger.info(f"[TRF1] Navigating to {TRF1_URL} | OAB={oab_numero} UF={oab_uf}")
             await page.goto(TRF1_URL, wait_until="domcontentloaded", timeout=90_000)
-            logger.info("trf1_page_loaded", extra={"title": await page.title()})
-            await asyncio.sleep(3)
+            title = await page.title()
+            logger.info(f"[TRF1] Page loaded: {title}")
+
+            # Wait extra time for JS (A4J/RichFaces) to initialize
+            # Don't use wait_for_load_state("load") — JSF pages may never fire that
+            await asyncio.sleep(5)
+
+            # Capture browser console messages for debugging
+            console_msgs = []
+            page.on("console", lambda msg: console_msgs.append(f"[{msg.type}] {msg.text}"))
+
+            # Check if A4J is available (critical for search button to work)
+            a4j_check = await page.evaluate("() => typeof A4J !== 'undefined'")
+            logger.info(f"[TRF1] A4J defined: {a4j_check}")
+
+            if not a4j_check:
+                # Wait more and retry — A4J may load late
+                logger.warning("[TRF1] A4J not found, waiting 5s extra for JS load...")
+                await asyncio.sleep(5)
+                a4j_check = await page.evaluate("() => typeof A4J !== 'undefined'")
+                logger.info(f"[TRF1] A4J after extra wait: {a4j_check}")
 
             # Check for captcha
             captcha = await page.query_selector(
                 "[class*='h-captcha'], [class*='hcaptcha'], iframe[src*='hcaptcha']"
             )
             if captcha:
-                logger.warning("trf1_captcha_detected")
+                logger.warning("[TRF1] CAPTCHA detected!")
                 return _error("Captcha detectado no site do tribunal.")
 
             await _scraper.human_delay(0.3, 0.8)
 
-            # Fill OAB number
+            # Wait for OAB input to be ready
             oab_input = page.locator(f"[id='{OAB_INPUT_ID}']")
             await oab_input.wait_for(state="visible", timeout=10_000)
+
+            # ── Fill OAB number ──
             await oab_input.fill(oab_numero)
+            logger.info(f"[TRF1] OAB filled: {oab_numero}")
             await _scraper.human_delay(0.2, 0.5)
 
-            # Select UF via Select2 dropdown (report section 5.1)
+            # ── Select UF via Select2 dropdown ──
             await _select_uf_select2(page, oab_uf)
-            await _scraper.human_delay(0.3, 0.7)
+            logger.info(f"[TRF1] UF selected: {oab_uf}")
+            await _scraper.human_delay(0.3, 0.6)
 
-            # Click search
-            await page.click(f"[id='{SEARCH_BUTTON_ID}']")
-            logger.info("trf1_search_clicked")
+            # Verify OAB and UF values before clicking
+            pre_oab = await page.evaluate(f"() => document.getElementById('{OAB_INPUT_ID}')?.value")
+            pre_uf = await page.evaluate(f"() => document.getElementById('{OAB_UF_SELECT_ID}')?.value")
+            logger.info(f"[TRF1] Pre-click values: OAB={pre_oab!r} UF={pre_uf!r}")
 
-            # Wait for results to appear
+            # ── Click Pesquisar button ──
+            pesquisar_btn = page.locator(f"[id='{SEARCH_BUTTON_ID}']")
+            await pesquisar_btn.wait_for(state="visible", timeout=10_000)
+
+            btn_onclick = await page.evaluate(
+                f"() => document.getElementById('{SEARCH_BUTTON_ID}')?.getAttribute('onclick')"
+            )
+            logger.info(f"[TRF1] Button onclick attr: {btn_onclick}")
+
+            if not a4j_check:
+                logger.error("[TRF1] A4J not available — cannot submit search")
+                return _error("A4J/RichFaces não inicializou. Verifique se stealth está desabilitado.")
+
+            # Call executarPesquisa() directly — the button onclick has
+            # "return executarReCaptcha();;A4J.AJAX.Submit(...)" which
+            # exits before A4J.AJAX.Submit runs. executarPesquisa() calls
+            # A4J.AJAX.Submit internally (captcha is disabled: if(false)).
+            await page.evaluate("() => executarPesquisa()")
+            logger.info("[TRF1] executarPesquisa() called")
+
+            # Wait for AJAX response
             try:
                 await page.wait_for_function(
                     """() => {
-                        const rows = document.querySelectorAll('tbody tr');
                         const text = document.body.innerText;
-                        const hasResults = text.match(/(\\d+) resultados? encontrados?/);
-                        const noResults = text.includes('não retornará qualquer resultado');
-                        return (rows.length > 0 && hasResults) || noResults;
+                        const match = text.match(/(\\d+)\\s+resultados?\\s+encontrados?/);
+                        return match && parseInt(match[1]) > 0;
                     }""",
-                    timeout=20_000,
+                    timeout=30_000,
                 )
+                logger.info("[TRF1] AJAX response received — results found!")
             except PlaywrightTimeout:
-                await asyncio.sleep(3)
+                logger.warning(f"[TRF1] AJAX timeout after 30s. Console msgs: {console_msgs[:5]}")
+            await asyncio.sleep(2)
+
+            # Save screenshot for debugging
+            try:
+                await page.screenshot(path="/tmp/trf1_after_search.png", full_page=True)
+                logger.info("[TRF1] Screenshot saved: /tmp/trf1_after_search.png")
+            except Exception as e:
+                logger.warning(f"[TRF1] Screenshot failed: {e}")
+
+            # Log page body snippet
+            body_snippet = await page.evaluate(
+                "() => document.body.innerText.substring(0, 1500)"
+            )
+            logger.info(f"[TRF1] Post-search body (first 500 chars):\n{body_snippet[:500]}")
 
             # Check for "no results"
             body_text = await page.inner_text("body")
@@ -168,28 +225,48 @@ async def consultar_oab_trf1(oab_numero: str, oab_uf: str) -> dict:
 
 
 async def _select_uf_select2(page: Page, uf: str) -> None:
-    """Select UF using Select2 dropdown or native select fallback.
+    """Select UF using Select2 dropdown.
 
     The UF dropdown on TRF1 uses Select2 over a native <select>.
-    Values are numeric indices (CE=5, SP=25 etc), not state abbreviations.
+    Tested via Playwright MCP: click the Select2 container to open,
+    then click the matching option text.
     """
-    # Try Select2 first: click the dropdown container, then select option by text
+    # Strategy 1: Click the Select2 container to open dropdown, then pick option
+    # NOTE: CSS selectors with ':' in IDs need escaping — use [id=...] attribute selector
     select2_container = await page.query_selector(
         f"[id='{OAB_UF_SELECT_ID}'] + .select2-container, "
-        f".select2-container--open"
+        f"[id='{OAB_UF_SELECT_ID}'] ~ .select2-container, "
+        f".select2-container[id*='estadoComboOAB']"
     )
 
     if select2_container:
         await select2_container.click()
         await asyncio.sleep(0.5)
-        # Click the option with matching text
+
+        # Select2 opens a dropdown with results
         option = page.locator(f".select2-results__option:has-text('{uf}')")
         if await option.count() > 0:
             await option.first.click()
+            await asyncio.sleep(0.3)
             return
 
-    # Fallback: set native <select> value via JavaScript
-    # The select uses numeric indices, so we find the option by label text
+    # Strategy 2: Use the combobox role selector (as confirmed by MCP Playwright snapshot)
+    # The snapshot showed: combobox "UF" → tree → treeitem "CE"
+    try:
+        uf_combo = page.get_by_role("combobox", name="UF")
+        if await uf_combo.count() > 0:
+            await uf_combo.click()
+            await asyncio.sleep(0.5)
+
+            uf_item = page.get_by_role("treeitem", name=uf)
+            if await uf_item.count() > 0:
+                await uf_item.click()
+                await asyncio.sleep(0.3)
+                return
+    except Exception:
+        pass
+
+    # Strategy 3: Set native <select> value via JavaScript and dispatch change event
     await page.evaluate(
         """([selectId, uf]) => {
             const sel = document.getElementById(selectId);
@@ -295,12 +372,18 @@ async def _extract_parties(page: Page) -> list[dict]:
         for line in lines[1:]:  # skip header
             if not line or line == polo_name:
                 continue
-            # Skip navigation/header lines
+            # Skip navigation/header lines and table headers
             if any(skip in line.lower() for skip in [
                 "movimentações", "documentos", "polo ", "outros ",
                 "data da distribuição", "classe judicial", "assunto",
+                "participante", "situação", "advogado(a)",
             ]):
-                break
+                if any(skip in line.lower() for skip in [
+                    "movimentações", "documentos", "polo ", "outros ",
+                    "data da distribuição", "classe judicial", "assunto",
+                ]):
+                    break
+                continue
 
             # Extract OAB if present
             oab_match = re.search(r"OAB\s*[:\s]*([A-Z]{2})\s*(\d+)", line)
@@ -470,10 +553,18 @@ async def _download_single_document(
 ) -> dict | None:
     """Open document viewer tab, download PDF, upload to S3."""
 
-    # Get description text near the link
-    parent = await doc_link.evaluate_handle("el => el.closest('td') || el.parentElement")
-    parent_text = await parent.evaluate("el => el.innerText")
-    doc_description = parent_text.strip()[:200] if parent_text else f"documento_{index}"
+    # Get description text from the table row containing the link
+    row_text = await doc_link.evaluate("""el => {
+        const row = el.closest('tr');
+        if (row) return row.innerText.replace(/\\s+/g, ' ').trim();
+        const td = el.closest('td');
+        if (td) return td.innerText.replace(/\\s+/g, ' ').trim();
+        return el.parentElement?.innerText?.trim() || '';
+    }""")
+    # Extract meaningful part: date + document type (skip "VISUALIZAR DOCUMENTOS" link text)
+    doc_description = re.sub(r"(?i)visualizar\s+documentos?", "", row_text).strip()[:200]
+    if not doc_description:
+        doc_description = f"documento_{index}"
 
     # Click "Visualizar documentos" → opens new tab
     async with context.expect_page(timeout=30_000) as doc_page_info:
@@ -604,8 +695,8 @@ async def _parse_results(page: Page) -> list[dict]:
     """
     processos = []
 
-    # Wait for table rows
-    await page.wait_for_selector("tbody tr", timeout=10_000)
+    # Wait for table rows (use attached state — rows may not be "visible")
+    await page.wait_for_selector("tbody tr", state="attached", timeout=10_000)
     rows = await page.query_selector_all("tbody tr")
 
     for row in rows:
