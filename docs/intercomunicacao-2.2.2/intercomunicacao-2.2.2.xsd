@@ -1328,7 +1328,7 @@
 					</documentation>
 				</annotation>
 			</element>
-			<any namespace="##other">
+			<any namespace="##other" minOccurs="0">
 				<annotation>
 					<documentation>
 						Ponto de extensão destinado a permitir o envio e
@@ -1573,7 +1573,7 @@
 					</documentation>
 				</annotation>
 			</element>
-			<any namespace="##other">
+			<any namespace="##other" minOccurs="0">
 				<annotation>
 					<documentation>
 						Ponto de extensão destinado a permitir a

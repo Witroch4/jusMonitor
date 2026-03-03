@@ -1,11 +1,15 @@
-"""Base scraper with Bright Data proxy integration.
+"""Base scraper with proxy rotation (Decodo/Smartproxy or Bright Data) and playwright-stealth v2.
 
-NOTE: playwright-stealth is NOT used because it breaks RichFaces A4J
-initialization. The stealth library overrides JSON.parse (or similar),
-which prevents A4J.AJAX.Submit from loading. Confirmed by test on
-02/03/2026: without stealth A4J=True immediately, with stealth A4J=False
-even after 17s wait. The hCaptcha console error also confirms:
-"Custom JSON polyfill detected".
+Proxy selection:
+- SMARTPROXY_DECODO=true  → Decodo/Smartproxy via gate.decodo.com:7000 (rotating BR IPs)
+- SMARTPROXY_DECODO=false → Bright Data (legacy) or no proxy if credentials are empty
+
+NOTE: Decodo proxy blocks .jus.br domains (403). Tribunal scraping uses
+direct access (residential IP) by default. Proxy is available for future
+non-tribunal scraping needs.
+
+Uses playwright-stealth v2 (mattwmaster58 fork) which is compatible with
+RichFaces A4J.
 """
 
 import logging
@@ -15,10 +19,14 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page, Playwright
+from playwright_stealth import Stealth
 
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+# Single Stealth instance — all evasions enabled (safe with v2)
+_stealth = Stealth()
 
 
 @dataclass
@@ -32,7 +40,7 @@ class BrowserSession:
 
 
 class BaseScraper:
-    """Base class providing Playwright browser with Bright Data proxy and stealth."""
+    """Base class providing Playwright browser with proxy rotation and stealth."""
 
     BROWSER_ARGS = [
         "--no-sandbox",
@@ -41,18 +49,26 @@ class BaseScraper:
         "--disable-blink-features=AutomationControlled",
         "--window-size=1920,1080",
         "--ignore-certificate-errors",
+        "--disable-http2",  # TRF3 Akamai returns ERR_HTTP2_PROTOCOL_ERROR
     ]
 
     @asynccontextmanager
-    async def create_session(self):
-        """Create a browser session with proxy and stealth. Use as async context manager.
+    async def create_session(self, use_proxy: bool = False):
+        """Create a browser session with stealth. Proxy is opt-in.
+
+        Args:
+            use_proxy: If True and proxy is configured, route through proxy.
+                       Default False — .jus.br domains block proxy IPs.
 
         Yields:
             BrowserSession with playwright, browser, context, and page.
         """
         pw = await async_playwright().start()
-        proxy_config = self._build_proxy_config()
-        logger.info("launching_browser", extra={"proxy": bool(proxy_config)})
+        proxy_config = self._build_proxy_config() if use_proxy else None
+        logger.info("launching_browser", extra={
+            "proxy": bool(proxy_config),
+            "use_proxy": use_proxy,
+        })
 
         launch_kwargs = {
             "headless": True,
@@ -76,6 +92,9 @@ class BaseScraper:
             accept_downloads=True,
         )
 
+        # Apply stealth to the entire context (covers all pages/popups)
+        await _stealth.apply_stealth_async(context)
+
         page = await context.new_page()
 
         session = BrowserSession(
@@ -89,11 +108,34 @@ class BaseScraper:
             await pw.stop()
 
     async def apply_stealth(self, page: Page) -> None:
-        """No-op. Stealth is disabled because it breaks A4J/RichFaces."""
+        """No-op. Stealth v2 is applied at context level, covers all pages."""
         pass
 
     def _build_proxy_config(self) -> dict | None:
-        """Build Bright Data proxy config with sticky session."""
+        """Build proxy config based on SMARTPROXY_DECODO env var."""
+        if settings.smartproxy_decodo:
+            return self._build_decodo_proxy()
+        return self._build_brightdata_proxy()
+
+    def _build_decodo_proxy(self) -> dict | None:
+        """Build Decodo/Smartproxy proxy config with rotating BR sessions."""
+        if not settings.proxy_user or not settings.proxy_pass:
+            logger.warning("Decodo proxy enabled but credentials missing")
+            return None
+
+        session_id = random.randint(10000, 9999999)
+        final_username = f"user-{settings.proxy_user}-country-br-session-{session_id}"
+
+        logger.info("proxy_decodo_session", extra={"session_id": session_id})
+
+        return {
+            "server": f"http://{settings.proxy_host}:{settings.proxy_port}",
+            "username": final_username,
+            "password": settings.proxy_pass,
+        }
+
+    def _build_brightdata_proxy(self) -> dict | None:
+        """Build Bright Data proxy config (legacy)."""
         if not settings.bd_username or not settings.bd_password:
             logger.warning("Bright Data proxy not configured, running without proxy")
             return None

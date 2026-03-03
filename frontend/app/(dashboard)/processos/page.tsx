@@ -42,6 +42,10 @@ import {
   Bell,
   Tag,
   X,
+  Briefcase,
+  Paperclip,
+  Download,
+  Eye,
 } from 'lucide-react'
 import {
   useConsultarProcessoMNI,
@@ -60,6 +64,17 @@ import {
   useProcessosMonitorados,
   type ProcessoMonitorado,
 } from '@/hooks/useProcessosMonitorados'
+import {
+  useCasosOAB,
+  useCasoDetalhe,
+  useSyncCasos,
+  useAdicionarCaso,
+  useRemoverCaso,
+  useMarcarCasoVisto,
+  useSyncStatus,
+} from '@/hooks/api/useCasosOAB'
+import type { CasoOAB, CasoOABDetail } from '@/types/casos-oab'
+import { useSyncProgress } from '@/hooks/useSyncProgress'
 
 const tribunaisMNI = TRIBUNAIS.filter((t) => t.suportaMNI && t.wsdlEndpoint)
 
@@ -645,13 +660,316 @@ function MniResultado({ resultado }: { resultado: ProcessoConsultaResponse }) {
   )
 }
 
-export default function ProcessosPage() {
-  const [mode, setMode] = useState<'datajud' | 'mni' | 'oab'>('datajud')
+// ─── Caso OAB Detalhe ─────────────────────────────────────────────────────────
 
-  // ── OAB Finder state ───────────────────────────────────────────────────
-  const [oabNumero, setOabNumero] = useState('')
-  const [oabUf, setOabUf] = useState('')
-  const consultarOAB = useConsultarOAB()
+function CasoOABDetalhe({
+  caso,
+  onVoltar,
+}: {
+  caso: CasoOABDetail
+  onVoltar: () => void
+}) {
+  const partes = caso.partesJson || []
+  const movimentacoes = caso.movimentacoesJson || []
+  const documentos = caso.documentosJson || []
+
+  // Group partes by polo
+  const poloGroups: Record<string, typeof partes> = {}
+  for (const p of partes) {
+    const polo = p.polo || 'Outros'
+    if (!poloGroups[polo]) poloGroups[polo] = []
+    poloGroups[polo].push(p)
+  }
+
+  return (
+    <div className="space-y-4">
+      <button
+        onClick={onVoltar}
+        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-2"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Voltar à lista
+      </button>
+
+      <div className="flex items-center gap-3 rounded-xl px-5 py-4 bg-green-50 border border-green-200 text-green-800">
+        <CheckCircle2 className="h-5 w-5 shrink-0" />
+        <div>
+          <span className="font-semibold text-sm">Processo encontrado via OAB</span>
+          <p className="text-xs mt-0.5 opacity-80">
+            Última sincronização: {caso.ultimaSincronizacao ? formatDate(caso.ultimaSincronizacao) : 'Nunca'}
+          </p>
+        </div>
+        <Badge variant="outline" className="ml-auto font-mono text-xs">{caso.numero}</Badge>
+      </div>
+
+      <Section title="Dados Básicos" icon={FileText}>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div>
+            <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Número</span>
+            <p className="font-mono text-sm font-medium mt-0.5">{caso.numero}</p>
+          </div>
+          <div>
+            <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Classe</span>
+            <p className="text-sm font-medium mt-0.5">{caso.classe || '-'}</p>
+          </div>
+          <div>
+            <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Assunto</span>
+            <p className="text-sm font-medium mt-0.5">{caso.assunto || '-'}</p>
+          </div>
+          <div>
+            <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Tribunal</span>
+            <p className="text-sm font-medium mt-0.5">{caso.tribunal?.toUpperCase() || 'TRF1'}</p>
+          </div>
+        </div>
+      </Section>
+
+      {Object.keys(poloGroups).length > 0 && (
+        <Section title="Partes" icon={Users} badge={partes.length}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {Object.entries(poloGroups).map(([polo, partesGrupo]) => {
+              const colors: Record<string, string> = {
+                'AUTOR': 'bg-blue-50 text-blue-700 border-blue-200',
+                'RÉU': 'bg-red-50 text-red-700 border-red-200',
+                'Ativo': 'bg-blue-50 text-blue-700 border-blue-200',
+                'Passivo': 'bg-red-50 text-red-700 border-red-200',
+              }
+              const cls = colors[polo] || 'bg-muted text-muted-foreground border-border'
+              return (
+                <div key={polo} className={`rounded-lg border p-4 ${cls}`}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Badge variant="outline" className={cls}>{polo}</Badge>
+                    <span className="text-xs opacity-70">({partesGrupo.length} parte{partesGrupo.length !== 1 ? 's' : ''})</span>
+                  </div>
+                  <div className="space-y-2">
+                    {partesGrupo.map((parte, i) => (
+                      <div key={i} className="bg-white/60 rounded-md p-2.5 border border-current/10">
+                        <span className="font-medium text-sm">{parte.nome}</span>
+                        {parte.papel && <span className="text-xs ml-2 opacity-70">{parte.papel}</span>}
+                        {parte.oab && <span className="text-xs ml-2 opacity-70">OAB: {parte.oab}</span>}
+                        {parte.documento && <span className="text-xs ml-2 opacity-70">Doc: {parte.documento}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </Section>
+      )}
+
+      {movimentacoes.length > 0 && (
+        <Section title="Movimentações" icon={Activity} badge={movimentacoes.length} defaultOpen={movimentacoes.length <= 30}>
+          <div className="max-h-125 overflow-y-auto pr-2">
+            {movimentacoes.map((mov, i) => (
+              <div key={i} className="flex gap-3 group">
+                <div className="flex flex-col items-center">
+                  <div className="w-2.5 h-2.5 rounded-full mt-1.5 bg-primary/60 group-hover:bg-primary transition-colors" />
+                  {i < movimentacoes.length - 1 && <div className="w-px flex-1 bg-border/60" />}
+                </div>
+                <div className="pb-4 flex-1">
+                  <p className="text-sm font-medium text-foreground">{mov.descricao || 'Sem descrição'}</p>
+                  {mov.documento_vinculado && (
+                    <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                      <Paperclip className="h-3 w-3" />
+                      {mov.documento_vinculado}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {documentos.length > 0 && (
+        <Section title="Documentos / Anexos" icon={Paperclip} badge={documentos.length}>
+          <div className="border border-border/40 rounded-lg overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/30">
+                  <TableHead className="text-xs uppercase pl-4">Nome</TableHead>
+                  <TableHead className="text-xs uppercase">Tipo</TableHead>
+                  <TableHead className="text-xs uppercase text-right pr-4">Ação</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {documentos.map((doc, i) => {
+                  const url = doc.s3Url || doc.s3_url || ''
+                  const tamanho = doc.tamanhoBytes || doc.tamanho_bytes
+                  return (
+                    <TableRow key={i} className="hover:bg-muted/20">
+                      <TableCell className="pl-4">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <span className="text-sm font-medium">{doc.nome || `Documento ${i + 1}`}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-xs text-muted-foreground">
+                          {doc.tipo || 'PDF'}
+                          {tamanho ? ` (${(tamanho / 1024).toFixed(0)} KB)` : ''}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right pr-4">
+                        {url ? (
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                            Baixar
+                          </a>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Indisponível</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </Section>
+      )}
+    </div>
+  )
+}
+
+// ─── Casos OAB Lista ──────────────────────────────────────────────────────────
+
+function CasosOABLista({
+  casos,
+  onAbrir,
+  onRemover,
+}: {
+  casos: CasoOAB[]
+  onAbrir: (c: CasoOAB) => void
+  onRemover: (id: string) => void
+}) {
+  if (casos.length === 0) return null
+
+  const comNovas = casos.filter((c) => c.novasMovimentacoes > 0)
+
+  return (
+    <div className="space-y-3">
+      {comNovas.length > 0 && (
+        <div className="flex items-center gap-2 bg-primary/5 border border-primary/20 rounded-xl px-5 py-3">
+          <Bell className="h-4 w-4 text-primary" />
+          <span className="text-sm font-medium text-primary">
+            {comNovas.length} processo{comNovas.length > 1 ? 's' : ''} com novas movimentações
+          </span>
+        </div>
+      )}
+      <div className="border border-border/40 rounded-xl overflow-hidden bg-card shadow-sm">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/30">
+              <TableHead className="text-xs uppercase pl-5">Processo</TableHead>
+              <TableHead className="text-xs uppercase hidden md:table-cell">Classe / Assunto</TableHead>
+              <TableHead className="text-xs uppercase hidden lg:table-cell">Partes</TableHead>
+              <TableHead className="text-xs uppercase text-center">Movimentações</TableHead>
+              <TableHead className="text-xs uppercase text-center hidden sm:table-cell">Docs</TableHead>
+              <TableHead className="text-xs uppercase hidden sm:table-cell">Última Sync</TableHead>
+              <TableHead className="text-xs uppercase text-right pr-4">Ações</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {casos.map((c) => (
+              <TableRow
+                key={c.id}
+                onClick={() => onAbrir(c)}
+                className={`cursor-pointer transition-colors ${
+                  c.novasMovimentacoes > 0
+                    ? 'bg-primary/3 hover:bg-primary/7 border-l-2 border-l-primary'
+                    : 'hover:bg-muted/30'
+                }`}
+              >
+                <TableCell className="pl-5">
+                  <span className="font-mono text-sm font-medium">{c.numero}</span>
+                </TableCell>
+                <TableCell className="hidden md:table-cell">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-sm font-medium">{c.classe || '-'}</span>
+                    {c.assunto && <span className="text-xs text-muted-foreground">{c.assunto}</span>}
+                  </div>
+                </TableCell>
+                <TableCell className="hidden lg:table-cell">
+                  <span className="text-sm max-w-xs truncate block">{c.partesResumo || '-'}</span>
+                </TableCell>
+                <TableCell className="text-center">
+                  <div className="flex items-center justify-center gap-1.5">
+                    <span className="text-sm font-medium tabular-nums">{c.totalMovimentacoes || '-'}</span>
+                    {c.novasMovimentacoes > 0 && (
+                      <Badge className="text-xs bg-primary text-primary-foreground px-1.5 py-0 h-5 min-w-5 flex items-center justify-center">
+                        +{c.novasMovimentacoes}
+                      </Badge>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell className="text-center hidden sm:table-cell">
+                  <span className="text-sm tabular-nums">{c.totalDocumentos || '-'}</span>
+                </TableCell>
+                <TableCell className="hidden sm:table-cell">
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Clock className="h-3 w-3" />{formatRelativo(c.ultimaSincronizacao)}
+                  </span>
+                </TableCell>
+                <TableCell className="text-right pr-4">
+                  <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                      onClick={() => onAbrir(c)} title="Ver detalhes">
+                      <Eye className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                      onClick={() => onRemover(c.id)} title="Remover">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  )
+}
+
+export default function ProcessosPage() {
+  const [mode, setMode] = useState<'casos' | 'datajud' | 'mni'>('casos')
+
+  // ── Casos OAB state ──────────────────────────────────────────────────
+  const { data: casosData, isLoading: casosLoading } = useCasosOAB()
+  const { data: syncStatusData } = useSyncStatus()
+  const syncMutation = useSyncCasos()
+  const { progress: pipelineProgress } = useSyncProgress()
+  const adicionarCasoMut = useAdicionarCaso()
+  const removerCasoMut = useRemoverCaso()
+  const marcarVistoMut = useMarcarCasoVisto()
+
+  const [casoAbertoId, setCasoAbertoId] = useState<string | null>(null)
+  const { data: casoDetalhe } = useCasoDetalhe(casoAbertoId)
+  const [mostraCadastroCaso, setMostraCadastroCaso] = useState(false)
+  const [numeroCasoNovo, setNumeroCasoNovo] = useState('')
+
+  const casos = casosData?.items || []
+
+  const handleAdicionarCaso = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!numeroCasoNovo.trim()) return
+    try {
+      await adicionarCasoMut.mutateAsync(numeroCasoNovo.trim())
+      setNumeroCasoNovo('')
+      setMostraCadastroCaso(false)
+    } catch { /* handled by RQ */ }
+  }
+
+  const handleAbrirCaso = (c: CasoOAB) => {
+    setCasoAbertoId(c.id)
+    if (c.novasMovimentacoes > 0) marcarVistoMut.mutate(c.id)
+  }
 
   // ── MNI state ────────────────────────────────────────────────────────────
   const [numeroProcessoMNI, setNumeroProcessoMNI] = useState('')
@@ -711,12 +1029,32 @@ export default function ProcessosPage() {
       <header className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4 border-b border-border/40 pb-6">
         <div>
           <h1 className="text-3xl md:text-4xl font-serif font-bold text-foreground tracking-tight">
-            {mode === 'datajud' && processoAberto ? 'Detalhe do Processo' : 'Consulta de Processos'}
+            {mode === 'casos' && casoAbertoId ? 'Detalhe do Processo' : mode === 'datajud' && processoAberto ? 'Detalhe do Processo' : 'Consulta de Processos'}
           </h1>
           <p className="mt-2 text-sm font-medium text-muted-foreground tracking-wide">
-            DataJud (CNJ público) | MNI 2.2.2 (SOAP) | OAB Finder (web scraping)
+            Casos (scrapy automático) | DataJud (CNJ público) | MNI 2.2.2 (SOAP)
           </p>
         </div>
+        {mode === 'casos' && !casoAbertoId && (
+          <div className="flex items-center gap-2 self-start md:self-auto">
+            <Button onClick={() => syncMutation.mutate()}
+              disabled={syncMutation.isPending || syncStatusData?.status === 'running'}
+              variant="outline" className="font-medium">
+              <RefreshCw className={`h-4 w-4 mr-2 ${
+                syncMutation.isPending || syncStatusData?.status === 'running' ? 'animate-spin' : ''
+              }`} />
+              {syncMutation.isPending
+                ? 'Aguarde...'
+                : syncStatusData?.status === 'running'
+                  ? 'Sincronizando...'
+                  : 'Atualizar'}
+            </Button>
+            <Button onClick={() => setMostraCadastroCaso((v) => !v)}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium shadow-sm">
+              <Plus className="h-4 w-4 mr-2" />Adicionar processo
+            </Button>
+          </div>
+        )}
         {mode === 'datajud' && !processoAberto && (
           <Button onClick={() => setMostraCadastro((v) => !v)}
             className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium shadow-sm self-start md:self-auto">
@@ -727,6 +1065,15 @@ export default function ProcessosPage() {
 
       {/* Mode toggle */}
       <div className="flex gap-2 mb-6">
+        <button onClick={() => { setMode('casos'); setCasoAbertoId(null) }}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${mode === 'casos' ? 'bg-primary text-primary-foreground border-primary'
+            : 'bg-card text-muted-foreground border-border/40 hover:bg-muted/30'}`}>
+          <Briefcase className="h-4 w-4" />
+          Casos
+          {casos.some((c) => c.novasMovimentacoes > 0) && mode !== 'casos' && (
+            <span className="w-2 h-2 rounded-full bg-primary ml-1" />
+          )}
+        </button>
         <button onClick={() => { setMode('datajud'); setProcessoAberto(null) }}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${mode === 'datajud' ? 'bg-primary text-primary-foreground border-primary'
             : 'bg-card text-muted-foreground border-border/40 hover:bg-muted/30'}`}>
@@ -742,13 +1089,230 @@ export default function ProcessosPage() {
           <Shield className="h-4 w-4" />
           MNI 2.2.2 (certificado)
         </button>
-        <button onClick={() => setMode('oab')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${mode === 'oab' ? 'bg-primary text-primary-foreground border-primary'
-            : 'bg-card text-muted-foreground border-border/40 hover:bg-muted/30'}`}>
-          <Search className="h-4 w-4" />
-          OAB Finder (web)
-        </button>
       </div>
+
+      {/* ── Casos Tab ──────────────────────────────────────────────────── */}
+      {mode === 'casos' && (
+        <>
+          {casoAbertoId && casoDetalhe ? (
+            <CasoOABDetalhe
+              caso={casoDetalhe}
+              onVoltar={() => setCasoAbertoId(null)}
+            />
+          ) : (
+            <>
+              {/* Sync status bar */}
+              {syncStatusData && syncStatusData.status !== 'no_oab' && (
+                <div className={`mb-4 rounded-lg border px-4 py-3 ${
+                  syncStatusData.status === 'running'
+                    ? 'bg-blue-50 border-blue-200 text-blue-700'
+                    : syncStatusData.status === 'error'
+                      ? 'bg-red-50 border-red-200 text-red-700'
+                      : 'bg-muted/30 border-border text-muted-foreground'
+                }`}>
+                  <div className="flex items-center gap-3 text-xs">
+                    {syncStatusData.status === 'running'
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                      : <Clock className="h-3.5 w-3.5 shrink-0" />}
+                    <span className="font-medium">
+                      {syncStatusData.status === 'running'
+                        ? (pipelineProgress?.faseLabel || 'Sincronizando processos em segundo plano…')
+                        : syncStatusData.status === 'error'
+                          ? 'Erro na última sincronização'
+                          : `Última sincronização: ${syncStatusData.ultimoSync ? formatRelativo(syncStatusData.ultimoSync) : 'Nunca'}`}
+                      {syncStatusData.status !== 'running' && syncStatusData.totalProcessos > 0 && ` — ${syncStatusData.totalProcessos} processos`}
+                    </span>
+                    {syncStatusData.oabNumero && (
+                      <Badge variant="outline" className="text-xs font-mono ml-auto">
+                        OAB/{syncStatusData.oabUf} {syncStatusData.oabNumero}
+                      </Badge>
+                    )}
+                  </div>
+
+                  {/* Pipeline progress details */}
+                  {syncStatusData.status === 'running' && pipelineProgress && (
+                    <div className="mt-2 space-y-1.5">
+                      {/* Tribunal + process context */}
+                      <div className="flex items-center gap-2 text-[11px] text-blue-600/80">
+                        {pipelineProgress.tribunal && (
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-mono uppercase">
+                            {pipelineProgress.tribunal}
+                          </Badge>
+                        )}
+                        {pipelineProgress.numero && (
+                          <span className="font-mono">{pipelineProgress.numero}</span>
+                        )}
+                        {pipelineProgress.processoIndex != null && pipelineProgress.processoTotal != null && (
+                          <span>
+                            Processo {pipelineProgress.processoIndex}/{pipelineProgress.processoTotal}
+                          </span>
+                        )}
+                        {pipelineProgress.docIndex != null && pipelineProgress.docTotal != null && (
+                          <span>
+                            • Doc {pipelineProgress.docIndex}/{pipelineProgress.docTotal}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Progress bar */}
+                      {pipelineProgress.processoTotal != null && pipelineProgress.processoTotal > 0 && (
+                        <div className="h-1.5 rounded-full bg-blue-200 overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-blue-500 transition-all duration-500"
+                            style={{
+                              width: `${Math.min(100, ((pipelineProgress.processoIndex || 0) / pipelineProgress.processoTotal) * 100)}%`,
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Completed summary */}
+                  {pipelineProgress?.fase === 'completed' && (
+                    <div className="mt-2 flex items-center gap-3 text-[11px] text-green-700">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      <span>
+                        {pipelineProgress.totalProcessos || 0} processos
+                        {pipelineProgress.novosProcessos ? ` (${pipelineProgress.novosProcessos} novos)` : ''}
+                        {pipelineProgress.docsBaixados ? ` • ${pipelineProgress.docsBaixados} documentos baixados` : ''}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Sync result feedback */}
+              {syncMutation.data && (
+                <div className={`flex items-center gap-2 rounded-xl px-5 py-3 mb-4 ${
+                  syncMutation.data.queued
+                    ? 'bg-blue-50 border border-blue-200 text-blue-800'
+                    : syncMutation.data.sucesso
+                      ? 'bg-green-50 border border-green-200 text-green-800'
+                      : 'bg-amber-50 border border-amber-200 text-amber-800'
+                }`}>
+                  {syncMutation.data.queued
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : syncMutation.data.sucesso
+                      ? <CheckCircle2 className="h-4 w-4" />
+                      : <AlertCircle className="h-4 w-4" />}
+                  <span className="text-sm font-medium">{syncMutation.data.mensagem}</span>
+                </div>
+              )}
+
+              {/* Add process form */}
+              {mostraCadastroCaso && (
+                <div className="border border-primary/20 rounded-xl bg-primary/2 p-5 mb-6 shadow-sm">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Plus className="h-4 w-4 text-primary" />
+                    <h3 className="font-semibold text-sm text-foreground">Adicionar processo manualmente</h3>
+                    <button onClick={() => setMostraCadastroCaso(false)} className="ml-auto text-muted-foreground hover:text-foreground transition-colors">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <form onSubmit={handleAdicionarCaso}>
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                      <div className="md:col-span-8">
+                        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Número do Processo (CNJ) *</label>
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                          <Input placeholder="1013264-53.2025.4.01.3904" value={numeroCasoNovo}
+                            onChange={(e) => setNumeroCasoNovo(e.target.value)} className="pl-10 font-mono" autoFocus />
+                        </div>
+                      </div>
+                      <div className="md:col-span-4 flex items-end">
+                        <Button type="submit" disabled={!numeroCasoNovo.trim() || adicionarCasoMut.isPending}
+                          className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-medium">
+                          {adicionarCasoMut.isPending
+                            ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />Adicionando...</>
+                            : <><Plus className="h-4 w-4 mr-1.5" />Adicionar</>}
+                        </Button>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {/* Stats */}
+              {casos.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+                  <div className="border border-border/40 rounded-xl bg-card px-4 py-3">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Processos</p>
+                    <p className="text-2xl font-bold font-mono mt-1 text-foreground">{casos.length}</p>
+                  </div>
+                  <div className="border border-border/40 rounded-xl bg-card px-4 py-3">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Movimentações</p>
+                    <p className="text-2xl font-bold font-mono mt-1 text-foreground">
+                      {casos.reduce((a, c) => a + c.totalMovimentacoes, 0) || '-'}
+                    </p>
+                  </div>
+                  <div className="border border-border/40 rounded-xl bg-card px-4 py-3">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Novas</p>
+                    <p className="text-2xl font-bold font-mono mt-1 text-primary">
+                      {casos.reduce((a, c) => a + c.novasMovimentacoes, 0) || '-'}
+                    </p>
+                  </div>
+                  <div className="border border-border/40 rounded-xl bg-card px-4 py-3">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Documentos</p>
+                    <p className="text-2xl font-bold font-mono mt-1 text-foreground">
+                      {casos.reduce((a, c) => a + c.totalDocumentos, 0) || '-'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Loading */}
+              {casosLoading && (
+                <div className="flex items-center justify-center p-12 text-muted-foreground">
+                  <Loader2 className="h-6 w-6 animate-spin mr-3" />
+                  <span className="text-sm">Carregando casos...</span>
+                </div>
+              )}
+
+              {/* List */}
+              {!casosLoading && casos.length > 0 && (
+                <CasosOABLista
+                  casos={casos}
+                  onAbrir={handleAbrirCaso}
+                  onRemover={(id) => removerCasoMut.mutate(id)}
+                />
+              )}
+
+              {/* Empty state */}
+              {!casosLoading && casos.length === 0 && (
+                <div className="border border-border/40 rounded-xl bg-card p-14 text-center">
+                  <Briefcase className="h-12 w-12 text-muted-foreground/25 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-foreground mb-2">Nenhum caso encontrado</h3>
+                  {syncStatusData?.status === 'no_oab' ? (
+                    <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                      Configure seu número OAB no <a href="/configuracoes" className="text-primary underline">perfil</a> para buscar processos automaticamente.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                        Seus processos serão sincronizados automaticamente 2x por dia.
+                        Clique em <strong>Atualizar</strong> para buscar agora.
+                      </p>
+                      <Button onClick={() => syncMutation.mutate()}
+                        disabled={syncMutation.isPending || syncStatusData?.status === 'running'}
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium">
+                        <RefreshCw className={`h-4 w-4 mr-2 ${
+                          syncMutation.isPending || syncStatusData?.status === 'running' ? 'animate-spin' : ''
+                        }`} />
+                        {syncMutation.isPending
+                          ? 'Aguarde...'
+                          : syncStatusData?.status === 'running'
+                            ? 'Sincronizando...'
+                            : 'Sincronizar agora'}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </>
+      )}
 
       {/* ── DataJud Tab ─────────────────────────────────────────────────── */}
       {mode === 'datajud' && (
@@ -798,7 +1362,7 @@ export default function ProcessosPage() {
         </>
       )}
 
-      {/* ── MNI Tab (inalterado) ─────────────────────────────────────────── */}
+      {/* ── MNI Tab ──────────────────────────────────────────────────────── */}
       {mode === 'mni' && (
         <>
           <div className="border border-border/40 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-xl p-6 bg-card mb-8">
@@ -862,126 +1426,6 @@ export default function ProcessosPage() {
         </>
       )}
 
-      {/* ── OAB Finder Tab ────────────────────────────────────────────── */}
-      {mode === 'oab' && (
-        <>
-          <div className="border border-border/40 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-xl p-6 bg-card mb-8">
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-              <div className="md:col-span-4">
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Número OAB</label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input placeholder="50784" value={oabNumero}
-                    onChange={(e) => setOabNumero(e.target.value)} className="pl-10 font-mono"
-                    onKeyDown={(e) => { if (e.key === 'Enter' && oabNumero && oabUf) consultarOAB.mutate({ oabNumero, oabUf }) }} />
-                </div>
-              </div>
-              <div className="md:col-span-3">
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Estado (UF)</label>
-                <Select value={oabUf} onValueChange={setOabUf}>
-                  <SelectTrigger><SelectValue placeholder="Selecione o estado" /></SelectTrigger>
-                  <SelectContent>
-                    {['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO']
-                      .map((uf) => <SelectItem key={uf} value={uf}>{uf}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="md:col-span-3 flex items-end">
-                <Button onClick={() => consultarOAB.mutate({ oabNumero, oabUf })}
-                  disabled={!oabNumero || !oabUf || consultarOAB.isPending}
-                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium shadow-sm">
-                  {consultarOAB.isPending
-                    ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Buscando...</>
-                    : <><Search className="h-4 w-4 mr-2" />Buscar</>}
-                </Button>
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground mt-3">
-              A busca pode demorar 5-15 segundos pois acessa o site do TRF1 em tempo real via web scraping.
-            </p>
-            {consultarOAB.isError && (
-              <div className="mt-4 flex items-center gap-2 text-destructive bg-destructive/10 rounded-lg px-4 py-3">
-                <AlertCircle className="h-4 w-4 shrink-0" />
-                <span className="text-sm font-medium">{(consultarOAB.error as Error)?.message || 'Erro na busca'}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Results */}
-          {consultarOAB.data?.sucesso && consultarOAB.data.processos.length > 0 && (
-            <div className="border border-border/40 rounded-xl overflow-hidden bg-card shadow-sm">
-              <div className="px-5 py-3 bg-green-50 border-b border-green-200 flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-700" />
-                <span className="text-sm font-medium text-green-800">{consultarOAB.data.mensagem}</span>
-                <Badge variant="secondary" className="ml-auto font-mono text-xs">{consultarOAB.data.total} processos</Badge>
-              </div>
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/30">
-                    <TableHead className="text-xs uppercase pl-5">Processo</TableHead>
-                    <TableHead className="text-xs uppercase">Classe / Assunto</TableHead>
-                    <TableHead className="text-xs uppercase hidden md:table-cell">Partes</TableHead>
-                    <TableHead className="text-xs uppercase hidden sm:table-cell">Última Movimentação</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {consultarOAB.data.processos.map((proc: OABProcessoResumo, i: number) => (
-                    <TableRow key={i} className="hover:bg-muted/30">
-                      <TableCell className="pl-5">
-                        <span className="font-mono text-sm font-medium">{proc.numero}</span>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-sm font-medium">{proc.classe || '-'}</span>
-                          {proc.assunto && <span className="text-xs text-muted-foreground">{proc.assunto}</span>}
-                        </div>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        <span className="text-sm max-w-xs truncate block">{proc.partes || '-'}</span>
-                      </TableCell>
-                      <TableCell className="hidden sm:table-cell">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-xs text-muted-foreground">{proc.ultimaMovimentacao || '-'}</span>
-                          {proc.dataUltimaMovimentacao && (
-                            <span className="text-xs text-muted-foreground/70">{proc.dataUltimaMovimentacao}</span>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-
-          {/* No results */}
-          {consultarOAB.data?.sucesso && consultarOAB.data.processos.length === 0 && (
-            <div className="border border-amber-200 rounded-xl bg-amber-50 p-6 text-center">
-              <AlertCircle className="h-8 w-8 text-amber-500 mx-auto mb-3" />
-              <p className="text-sm font-medium text-amber-800">{consultarOAB.data.mensagem}</p>
-            </div>
-          )}
-
-          {/* API error (sucesso=false) */}
-          {consultarOAB.data && !consultarOAB.data.sucesso && (
-            <div className="border border-red-200 rounded-xl bg-red-50 p-6 text-center">
-              <AlertCircle className="h-8 w-8 text-red-500 mx-auto mb-3" />
-              <p className="text-sm font-medium text-red-800">{consultarOAB.data.mensagem}</p>
-            </div>
-          )}
-
-          {/* Empty state */}
-          {!consultarOAB.data && !consultarOAB.isPending && (
-            <div className="border border-border/40 rounded-xl bg-card p-12 text-center">
-              <Search className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-foreground mb-2">Buscar processos por OAB</h3>
-              <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                Informe o número da OAB e o estado para buscar processos no TRF1 (Justiça Federal 1ª Região).
-              </p>
-            </div>
-          )}
-        </>
-      )}
     </div>
   )
 }

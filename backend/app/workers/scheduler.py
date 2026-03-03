@@ -160,3 +160,9 @@ def _register_default_tasks() -> None:
         register_task("tpu_sync_weekly", sync_tpu_from_cnj)
     except ImportError:
         logger.warning("Could not import tpu_sync task")
+
+    try:
+        from app.workers.tasks.oab_sync import sync_all_oab_jobs
+        register_task("oab_scraper_sync", sync_all_oab_jobs)
+    except ImportError:
+        logger.warning("Could not import oab_sync task")

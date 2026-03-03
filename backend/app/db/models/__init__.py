@@ -37,6 +37,9 @@ from app.db.models.peticao import (
 from app.db.models.tpu import TpuClasse, TpuAssunto
 from app.db.models.processo_monitorado import ProcessoMonitorado
 from app.db.models.user_integration import UserIntegration, IntegrationType
+from app.db.models.caso_oab import CasoOAB
+from app.db.models.oab_sync_config import OABSyncConfig
+from app.db.models.scrape_job import ScrapeJob
 
 __all__ = [
     "Tenant",
@@ -79,4 +82,7 @@ __all__ = [
     "ProcessoMonitorado",
     "UserIntegration",
     "IntegrationType",
+    "CasoOAB",
+    "OABSyncConfig",
+    "ScrapeJob",
 ]

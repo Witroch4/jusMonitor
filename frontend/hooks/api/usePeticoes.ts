@@ -68,20 +68,47 @@ export function useConsultarProcesso() {
   })
 }
 
+/** Remove empty-name parties/lawyers from polos before sending to backend */
+function sanitizeDadosBasicos(db: NovaPeticaoFormData['dadosBasicos']) {
+  if (!db) return undefined
+  const polos = db.polos
+    .map((polo) => ({
+      ...polo,
+      partes: polo.partes.filter((p) => p.nome?.trim()),
+      advogados: (polo.advogados ?? []).filter((a) => a.nome?.trim()),
+    }))
+    .filter((polo) => polo.partes.length > 0 || polo.advogados.length > 0)
+
+  const hasAnyData =
+    polos.length > 0 ||
+    (db.assuntos?.length ?? 0) > 0 ||
+    db.classeProcessual ||
+    db.valorCausa ||
+    db.codigoLocalidade
+
+  if (!hasAnyData) return undefined
+
+  return { ...db, polos }
+}
+
 export function useCreatePeticao() {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async (formData: NovaPeticaoFormData): Promise<Peticao> => {
-      const { data } = await apiClient.post<Peticao>('/peticoes', {
-        processoNumero: formData.processoNumero,
+      const payload: Record<string, unknown> = {
+        processoNumero: formData.processoNumero || '',
         tribunalId: formData.tribunalId,
-        tipoPeticao: formData.tipoPeticao,
-        assunto: formData.assunto,
-        descricao: formData.descricao || undefined,
-        certificadoId: formData.certificadoId || undefined,
-        dadosBasicos: formData.dadosBasicos || undefined,
-      })
+        assunto: formData.assunto || '',
+      }
+      // Only send tipoPeticao if the user actually picked one
+      if (formData.tipoPeticao) payload.tipoPeticao = formData.tipoPeticao
+      if (formData.descricao) payload.descricao = formData.descricao
+      if (formData.certificadoId) payload.certificadoId = formData.certificadoId
+      const db = sanitizeDadosBasicos(formData.dadosBasicos)
+      if (db) payload.dadosBasicos = db
+
+      const { data } = await apiClient.post<Peticao>('/peticoes', payload)
       return data
     },
     onSuccess: () => {

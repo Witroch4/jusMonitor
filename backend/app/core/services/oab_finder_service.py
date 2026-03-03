@@ -11,7 +11,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 SCRAPER_BASE_URL = "http://scraper:8001"
-SCRAPER_TIMEOUT = 90.0  # seconds — must be larger than scraper's internal timeouts (~50s)
+SCRAPER_TIMEOUT = 300.0  # seconds — background task can wait; scraper may process many docs
 
 
 async def consultar_oab(oab_numero: str, oab_uf: str) -> dict:

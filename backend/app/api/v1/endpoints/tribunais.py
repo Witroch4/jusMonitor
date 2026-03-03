@@ -103,7 +103,10 @@ TRIBUNAIS = [
         "limiteArquivoMB": 5,
         "requerMTLS": True,
         "suportaMNI": True,
-        "avisoInstabilidade": "TRF1 pode apresentar instabilidade. Retry com backoff exponencial obrigatório.",
+        "suportaPlaywright": True,
+        "scraperCode": "trf1",
+        "mniBloqueado": True,
+        "avisoInstabilidade": "TRF1 MNI bloqueado por firewall — usa Playwright RPA como fallback.",
     },
     {
         "id": "TRF1-2G",
@@ -116,7 +119,10 @@ TRIBUNAIS = [
         "limiteArquivoMB": 5,
         "requerMTLS": True,
         "suportaMNI": True,
-        "avisoInstabilidade": "TRF1 pode apresentar instabilidade. Retry com backoff exponencial obrigatório.",
+        "suportaPlaywright": True,
+        "scraperCode": "trf1",
+        "mniBloqueado": True,
+        "avisoInstabilidade": "TRF1 MNI bloqueado por firewall — usa Playwright RPA como fallback.",
     },
     {
         "id": "TRF4",

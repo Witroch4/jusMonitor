@@ -49,8 +49,10 @@ class PeticaoService:
     ) -> Peticao:
         """Create a new petition in rascunho status with initial event."""
         # For petição inicial, use 20 zeros as per MNI 2.2.2
+        # Default to OUTRO when saving a draft without tipo selected yet
+        tipo_peticao = data.tipo_peticao or TipoPeticao.OUTRO
         processo_numero = data.processo_numero
-        if data.tipo_peticao == TipoPeticao.PETICAO_INICIAL and not processo_numero:
+        if tipo_peticao == TipoPeticao.PETICAO_INICIAL and not processo_numero:
             processo_numero = "00000000000000000000"
 
         # Serialize dados_basicos to JSON if provided
@@ -62,7 +64,7 @@ class PeticaoService:
         pet = await repo.create(
             processo_numero=processo_numero,
             tribunal_id=data.tribunal_id,
-            tipo_peticao=data.tipo_peticao,
+            tipo_peticao=tipo_peticao,
             assunto=data.assunto,
             descricao=data.descricao,
             certificado_id=data.certificado_id,

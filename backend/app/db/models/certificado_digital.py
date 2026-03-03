@@ -64,6 +64,9 @@ class CertificadoDigital(TenantBaseModel):
     pfx_password_encrypted: Mapped[bytes] = mapped_column(
         LargeBinary, nullable=False, comment="Fernet-encrypted PFX password"
     )
+    totp_secret_encrypted: Mapped[Optional[bytes]] = mapped_column(
+        LargeBinary, nullable=True, comment="Fernet-encrypted TOTP secret (base32) for PJe SSO 2FA"
+    )
 
     # mTLS test results
     ultimo_teste_em: Mapped[Optional[datetime]] = mapped_column(

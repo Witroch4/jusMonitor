@@ -5,8 +5,10 @@ from app.workers.broker import broker
 # Import all task modules to register them with the broker
 # This ensures tasks are discovered when the worker starts
 from app.workers.tasks import chatwit_handlers  # noqa: F401
+from app.workers.tasks import oab_sync  # noqa: F401
 from app.workers.tasks import peticao_protocolar  # noqa: F401
 from app.workers.tasks import tpu_sync  # noqa: F401
+from app.workers.tasks import scrape_pipeline  # noqa: F401
 
 # Example of how to create tasks:
 # 

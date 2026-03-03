@@ -24,11 +24,15 @@ export function PeticaoFormRevisao({ formData, files, analise }: Props) {
   const isPeticaoInicial = formData.tipoPeticao === 'peticao_inicial'
   const processoOk = isPeticaoInicial || formData.processoNumero.length > 10
 
+  const assuntosOk = isPeticaoInicial
+    ? (formData.dadosBasicos?.assuntos?.length || 0) > 0
+    : true
+
   const checks: CheckItem[] = [
     { label: 'Tribunal selecionado', ok: !!formData.tribunalId },
     { label: isPeticaoInicial ? 'Número gerado pelo tribunal' : 'Número do processo preenchido', ok: processoOk },
     { label: 'Tipo de petição selecionado', ok: !!formData.tipoPeticao },
-    { label: 'Matéria preenchida', ok: (formData.dadosBasicos?.assuntos?.length || 0) > 0 },
+    ...(isPeticaoInicial ? [{ label: 'Matéria preenchida', ok: assuntosOk }] : []),
     { label: 'Documento principal anexado', ok: hasPrincipal },
     { label: 'Certificado digital selecionado', ok: !!formData.certificadoId },
   ]
@@ -106,11 +110,13 @@ export function useRevisaoValidation(
   const hasPrincipal = files.some((f) => f.tipoDocumento === 'peticao_principal' && f.status === 'uploaded')
   const isPeticaoInicial = formData.tipoPeticao === 'peticao_inicial'
   const processoOk = isPeticaoInicial || formData.processoNumero.length > 10
+  // Matéria obrigatória apenas para petição inicial; intercorrentes não precisam
+  const assuntosOk = !isPeticaoInicial || (formData.dadosBasicos?.assuntos?.length || 0) > 0
   return (
     !!formData.tribunalId &&
     processoOk &&
     !!formData.tipoPeticao &&
-    (formData.dadosBasicos?.assuntos?.length || 0) > 0 &&
+    assuntosOk &&
     hasPrincipal &&
     !!formData.certificadoId
   )

@@ -120,8 +120,9 @@ class PeticaoCreate(BaseModel):
 
     processo_numero: str = Field("", max_length=50)
     tribunal_id: str = Field(..., min_length=1, max_length=20)
-    tipo_peticao: TipoPeticao
-    assunto: str = Field(..., min_length=1, max_length=500)
+    # Optional on drafts — defaults to OUTRO; protocol validation enforces a real type
+    tipo_peticao: Optional[TipoPeticao] = None
+    assunto: str = Field("", max_length=500)
     descricao: Optional[str] = None
     certificado_id: Optional[UUID] = None
     dados_basicos: Optional[DadosBasicos] = None

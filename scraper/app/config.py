@@ -11,10 +11,18 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # Bright Data Proxy
+    # --- Proxy ---
+    # Default: Bright Data (legacy)
     bd_host: str = "brd.superproxy.io:33335"
     bd_username: str = ""
     bd_password: str = ""
+
+    # Decodo/Smartproxy — ativado via SMARTPROXY_DECODO=true
+    smartproxy_decodo: bool = False
+    proxy_host: str = "gate.decodo.com"
+    proxy_port: int = 7000
+    proxy_user: str = ""
+    proxy_pass: str = ""
 
     # S3 Storage
     s3_access_key: str = ""
@@ -30,5 +38,75 @@ class Settings(BaseSettings):
     environment: str = "development"
     log_level: str = "INFO"
 
+    # Browser pool
+    browser_pool_size: int = 2
+    browser_max_uses: int = 20
+
 
 settings = Settings()
+
+
+# ── Per-tribunal throttling config ──
+# Controls how aggressively we scrape each tribunal.
+# This prevents IP blocking and makes the scraper behave more humanly.
+
+from dataclasses import dataclass
+
+
+@dataclass
+class TribunalThrottleConfig:
+    """Rate limiting and delay configuration per tribunal."""
+    max_concurrent: int = 1          # Max concurrent requests to this tribunal
+    delay_between_requests: tuple[float, float] = (5.0, 15.0)  # Delay range (seconds)
+    delay_between_docs: tuple[float, float] = (3.0, 8.0)       # Delay between doc downloads
+    delay_between_pages: tuple[float, float] = (1.0, 3.0)      # Delay between movement pages
+    max_requests_per_hour: int = 30  # Hard cap
+    backoff_on_error: float = 30.0   # Wait this long after an error
+
+
+TRIBUNAL_THROTTLE: dict[str, TribunalThrottleConfig] = {
+    "trf1": TribunalThrottleConfig(
+        max_concurrent=1,
+        delay_between_requests=(5.0, 12.0),
+        delay_between_docs=(3.0, 6.0),
+        max_requests_per_hour=40,
+    ),
+    "trf3": TribunalThrottleConfig(
+        max_concurrent=1,
+        delay_between_requests=(8.0, 18.0),
+        delay_between_docs=(4.0, 8.0),
+        max_requests_per_hour=25,
+    ),
+    "trf5": TribunalThrottleConfig(
+        max_concurrent=1,
+        delay_between_requests=(5.0, 12.0),
+        delay_between_docs=(3.0, 6.0),
+        max_requests_per_hour=40,
+    ),
+    "trf6": TribunalThrottleConfig(
+        max_concurrent=1,
+        delay_between_requests=(8.0, 18.0),
+        delay_between_docs=(4.0, 8.0),
+        max_requests_per_hour=25,
+    ),
+    "tjce": TribunalThrottleConfig(
+        max_concurrent=1,
+        delay_between_requests=(5.0, 12.0),
+        delay_between_docs=(3.0, 6.0),
+        max_requests_per_hour=30,
+    ),
+    "tjce2g": TribunalThrottleConfig(
+        max_concurrent=1,
+        delay_between_requests=(5.0, 12.0),
+        delay_between_docs=(3.0, 6.0),
+        max_requests_per_hour=30,
+    ),
+}
+
+# Default for unknown tribunals
+DEFAULT_THROTTLE = TribunalThrottleConfig()
+
+
+def get_throttle(tribunal: str) -> TribunalThrottleConfig:
+    """Get throttle config for a tribunal."""
+    return TRIBUNAL_THROTTLE.get(tribunal.lower(), DEFAULT_THROTTLE)

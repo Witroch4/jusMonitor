@@ -137,10 +137,9 @@ export function PeticaoForm({ onVoltar }: Props) {
     if (isSubmitting) return
     const minValid =
       !!formData.tribunalId &&
-      !!formData.tipoPeticao &&
-      (formData.dadosBasicos?.assuntos?.length || 0) > 0
+      !!formData.tipoPeticao
     if (!minValid) {
-      toast.error('Preencha tribunal, tipo e assunto para salvar o rascunho.')
+      toast.error('Preencha tribunal e tipo de petição para salvar o rascunho.')
       return
     }
     setIsSubmitting(true)

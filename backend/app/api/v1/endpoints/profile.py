@@ -84,6 +84,15 @@ async def update_profile(
             detail="Usuário não encontrado",
         )
 
+    # Auto-create OABSyncConfig when user sets OAB number
+    oab_number = update_data.get("oab_number") or updated.oab_number
+    oab_state = update_data.get("oab_state") or updated.oab_state
+    if oab_number and oab_state:
+        from app.db.repositories.caso_oab import OABSyncConfigRepository
+
+        sync_repo = OABSyncConfigRepository(session, user.tenant_id)
+        await sync_repo.get_or_create(oab_number, oab_state)
+
     await session.commit()
     return _build_profile_response(updated)
 

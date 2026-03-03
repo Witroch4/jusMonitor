@@ -1,9 +1,11 @@
-version: "3.8"
-
 # =============================================================================
 # JusMonitorIA — Stack de Produção (deploy via Portainer / Docker Swarm)
 # =============================================================================
 # URL: https://jusmonitoriaia.witdev.com.br
+# =============================================================================
+# Pré-requisitos externos (já rodando em minha_rede):
+#   - postgres  (porta 5432)
+#   - redis     (porta 6379)
 # =============================================================================
 
 # ─── Âncora: variáveis de ambiente compartilhadas (backend + worker) ────────
@@ -12,13 +14,13 @@ x-backend-environment: &backend-environment
   ENVIRONMENT: "production"
   LOG_LEVEL: "WARNING"
 
-  # PostgreSQL (ajuste host/senha conforme seu servidor)
+  # PostgreSQL (externo — container "postgres" em minha_rede)
   DATABASE_URL: "postgresql+asyncpg://jusmonitoria:CHANGE_ME_DB_PASSWORD@postgres:5432/jusmonitoria"
   POSTGRES_DB: "jusmonitoria"
   POSTGRES_USER: "jusmonitoria"
   POSTGRES_PASSWORD: "CHANGE_ME_DB_PASSWORD"
 
-  # Redis
+  # Redis (externo — container "redis" em minha_rede)
   REDIS_URL: "redis://redis:6379/0"
 
   # Segurança / JWT
@@ -46,46 +48,6 @@ x-backend-environment: &backend-environment
 # =============================================================================
 services:
 
-  # ─── PostgreSQL ─────────────────────────────────────────────────────────────
-  postgres:
-    image: pgvector/pgvector:pg17
-    environment:
-      <<: *backend-environment
-      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C.UTF-8"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - internal
-    deploy:
-      mode: replicated
-      replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
-      resources:
-        limits:
-          cpus: "2"
-          memory: 2048M
-
-  # ─── Redis ──────────────────────────────────────────────────────────────────
-  redis:
-    image: redis:7-alpine
-    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
-    volumes:
-      - redis_data:/data
-    networks:
-      - internal
-    deploy:
-      mode: replicated
-      replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
-      resources:
-        limits:
-          cpus: "1"
-          memory: 512M
-
   # ─── Backend API ────────────────────────────────────────────────────────────
   backend:
     image: witrocha/jusmonitoria-backend:latest
@@ -102,7 +64,6 @@ services:
       <<: *backend-environment
       PYTHONPATH: /app
     networks:
-      - internal
       - minha_rede
     deploy:
       mode: replicated
@@ -150,7 +111,7 @@ services:
       <<: *backend-environment
       PYTHONPATH: /app
     networks:
-      - internal
+      - minha_rede
     deploy:
       mode: replicated
       replicas: 1
@@ -177,7 +138,7 @@ services:
       BD_USERNAME: "brd-customer-hl_1311c64c-zone-jusmonitoria"
       BD_PASSWORD: "hm29tlz8nmbn"
     networks:
-      - internal
+      - minha_rede
     deploy:
       mode: replicated
       replicas: 1
@@ -229,20 +190,9 @@ services:
         max-file: "3"
 
 # =============================================================================
-# Volumes
-# =============================================================================
-volumes:
-  postgres_data:
-    driver: local
-  redis_data:
-    driver: local
-
-# =============================================================================
 # Networks
 # =============================================================================
 networks:
-  internal:
-    driver: overlay
   minha_rede:
     external: true
     name: minha_rede

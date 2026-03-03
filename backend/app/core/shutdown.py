@@ -2,6 +2,7 @@
 
 import asyncio
 import signal
+import sys
 from typing import Callable, Optional
 
 import structlog
@@ -108,6 +109,12 @@ class GracefulShutdown:
                 error_type=type(e).__name__,
             )
             self.shutdown_event.set()
+        finally:
+            # CRITICAL: exit the process so Docker/supervisor can restart it.
+            # Without this, the process stays alive permanently rejecting all
+            # requests with 503 after a SIGTERM/SIGINT is received.
+            logger.info("process_exit_after_shutdown")
+            sys.exit(0)
 
     async def _wait_for_requests(self) -> None:
         """Wait for in-flight requests to complete."""

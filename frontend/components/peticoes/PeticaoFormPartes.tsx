@@ -129,7 +129,7 @@ export function PeticaoFormPartes({ polos, onChange }: Props) {
   }
 
   const setCnpjState = (key: string, state: Partial<CnpjState>) =>
-    setCnpjStates((prev) => ({ ...prev, [key]: { loading: false, error: null, found: false, ...prev[key], ...state } }))
+    setCnpjStates((prev) => ({ ...prev, [key]: { ...{ loading: false, error: null, found: false }, ...prev[key], ...state } }))
 
   // Fetch CNPJ data from BrasilAPI and auto-fill
   const lookupCnpj = useCallback(

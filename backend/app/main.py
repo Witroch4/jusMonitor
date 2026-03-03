@@ -398,6 +398,11 @@ from app.api.v1.endpoints.tpu import router as tpu_router
 
 app.include_router(tpu_router, prefix=settings.api_v1_prefix, tags=["tpu"])
 
+# OAB-scraped cases (Casos) endpoints
+from app.api.v1.endpoints.casos_oab import router as casos_oab_router
+
+app.include_router(casos_oab_router, prefix=settings.api_v1_prefix, tags=["casos-oab"])
+
 # Serve static files (avatars, etc.)
 import os
 

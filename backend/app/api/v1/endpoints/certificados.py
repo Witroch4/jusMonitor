@@ -4,7 +4,7 @@ import logging
 from uuid import UUID
 
 import httpx
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -247,5 +247,44 @@ async def remover_certificado(
 
     logger.info(
         "Certificate revoked",
+        extra={"cert_id": str(cert_id), "tenant_id": str(tenant_id)},
+    )
+
+
+@router.patch("/{cert_id}/totp", status_code=status.HTTP_204_NO_CONTENT)
+async def configurar_totp_certificado(
+    cert_id: UUID,
+    totp_secret: str | None = Body(
+        default=None,
+        embed=True,
+        description="Segredo TOTP base32 para 2FA do SSO PJe. Enviar null para remover.",
+    ),
+    tenant_id: UUID = Depends(get_current_tenant_id),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> None:
+    """Configurar (ou remover) o segredo TOTP para autenticação 2FA do SSO PJe.
+
+    Envia null para remover o TOTP configurado.
+    O segredo é armazenado criptografado (Fernet) junto ao certificado.
+    """
+    repo = CertificadoDigitalRepository(session, tenant_id)
+    cert = await repo.get(cert_id)
+
+    if cert is None or cert.revogado:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Certificado não encontrado",
+        )
+
+    crypto = _get_crypto_service()
+    totp_encrypted = crypto.encrypt(totp_secret.encode()) if totp_secret else None
+
+    await repo.update(cert_id, totp_secret_encrypted=totp_encrypted)
+    await session.commit()
+
+    logger.info(
+        "Certificate TOTP %s",
+        "configured" if totp_secret else "removed",
         extra={"cert_id": str(cert_id), "tenant_id": str(tenant_id)},
     )

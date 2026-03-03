@@ -5,16 +5,18 @@ Key MNI 2.2.2 rules:
   - numeroProcesso: 20 pure digits (no dots/dashes)
   - Initial petition: "00000000000000000000" (20 zeros)
   - Documents: base64Binary (changed from hexBinary in v2.2.2)
-  - orgaoJulgador: required (code, name, instance, IBGE municipality)
-  - polo[]: required (AT=ativo, PA=passivo) with partes and advogados
-  - assunto[]: required (codigoNacional per TPU/CNJ)
-  - idManifestante: pure CPF digits
+  - entregarManifestacaoProcessual: <choice> between numeroProcesso OR dadosBasicos
+    - Existing process: only numeroProcesso (no dadosBasicos needed)
+    - New/initial process: dadosBasicos with polo[], assunto[], orgaoJulgador (required)
+  - idManifestante: pure CPF digits (ignored when mTLS certificate is used)
 """
 
 import base64
 import logging
+import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 import requests
@@ -24,6 +26,9 @@ from zeep.transports import Transport
 
 from app.config import settings
 from app.core.services.certificados.crypto import CertificateCryptoService
+
+# Path to local WSDL for fallback when tribunal returns 403
+LOCAL_WSDL_DIR = Path(__file__).resolve().parents[4] / "docs" / "intercomunicacao-2.2.2"
 
 logger = logging.getLogger(__name__)
 
@@ -271,31 +276,44 @@ class MniSoapClient:
                     "conteudo": doc["conteudo"],  # bytes — zeep handles base64Binary
                 })
 
-            # Build dadosBasicos from stored JSON or fallback to minimal
-            if dados_basicos_json:
-                dados_basicos = build_dados_basicos(dados_basicos_json, numero_normalizado)
-            else:
-                dados_basicos = {
-                    "classeProcessual": classe_processual,
-                    "codigoLocalidade": "0001",
-                    "competencia": 0,
-                    "nivelSigilo": sigilo,
-                    "numero": numero_normalizado,
-                }
+            # MNI 2.2.2 XSD <choice>: EITHER numeroProcesso OR dadosBasicos
+            # - Existing process: send only numeroProcesso (intermediary petition)
+            # - New/initial process (20 zeros): send dadosBasicos with full capa
+            is_initial = numero_normalizado == "00000000000000000000"
 
             try:
-                resposta = client.service.entregarManifestacaoProcessual(
-                    idManifestante=id_manifestante,
-                    senhaManifestante="",
-                    numeroProcesso=numero_normalizado,
-                    dadosBasicos=dados_basicos,
-                    documento=docs_mni,
-                    dataEnvio=datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S"),
-                )
+                soap_params = {
+                    "idManifestante": id_manifestante,
+                    "senhaManifestante": "",
+                    "documento": docs_mni,
+                    "dataEnvio": datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S"),
+                }
+
+                if is_initial:
+                    # New process: send dadosBasicos (requires polo[], assunto[], orgaoJulgador)
+                    if dados_basicos_json:
+                        soap_params["dadosBasicos"] = build_dados_basicos(dados_basicos_json, numero_normalizado)
+                    else:
+                        soap_params["dadosBasicos"] = {
+                            "classeProcessual": classe_processual,
+                            "codigoLocalidade": "0001",
+                            "competencia": 0,
+                            "nivelSigilo": sigilo,
+                            "numero": numero_normalizado,
+                        }
+                else:
+                    # Existing process: send only numeroProcesso (no dadosBasicos!)
+                    soap_params["numeroProcesso"] = numero_normalizado
+
+                resposta = client.service.entregarManifestacaoProcessual(**soap_params)
 
                 sucesso = getattr(resposta, "sucesso", False)
                 mensagem = str(getattr(resposta, "mensagem", ""))
-                protocolo = str(getattr(resposta, "protocolo", "")) if sucesso else None
+                # XSD field is protocoloRecebimento (not protocolo)
+                protocolo = str(
+                    getattr(resposta, "protocoloRecebimento", "")
+                    or getattr(resposta, "protocolo", "")
+                ) if sucesso else None
                 recibo = None
 
                 if sucesso and hasattr(resposta, "recibo") and resposta.recibo:
@@ -332,7 +350,12 @@ class MniSoapClient:
                 )
 
     def _create_client(self, wsdl_url: str, cert_path: str, key_path: str) -> ZeepClient:
-        """Create a zeep SOAP client with mTLS session."""
+        """Create a zeep SOAP client with mTLS session.
+
+        If the remote WSDL returns 403/5xx, falls back to the local WSDL
+        bundled in docs/intercomunicacao-2.2.2/ and overrides the service
+        address to the tribunal's actual endpoint.
+        """
         session = requests.Session()
         session.cert = (cert_path, key_path)
         session.verify = True
@@ -347,7 +370,49 @@ class MniSoapClient:
             ),
         )
 
-        return ZeepClient(wsdl_url, transport=transport)
+        try:
+            return ZeepClient(wsdl_url, transport=transport)
+        except Exception as remote_err:
+            logger.warning(
+                "Remote WSDL failed, falling back to local WSDL",
+                extra={"url": wsdl_url, "error": str(remote_err)[:120]},
+            )
+            return self._create_client_from_local_wsdl(wsdl_url, transport)
+
+    @staticmethod
+    def _create_client_from_local_wsdl(remote_url: str, transport: Transport) -> ZeepClient:
+        """Load zeep client from local WSDL and override the service address."""
+        local_wsdl = LOCAL_WSDL_DIR / "servico-intercomunicacao-2.2.2.wsdl"
+        if not local_wsdl.exists():
+            raise FileNotFoundError(f"Local WSDL not found at {local_wsdl}")
+
+        # zeep resolves relative XSD imports from the WSDL's location.
+        # The WSDL references ../xsd/*.xsd but XSDs are in the same dir.
+        # Fix: create a temp WSDL copy with corrected schemaLocation paths.
+        import tempfile
+        wsdl_text = local_wsdl.read_text(encoding="utf-8")
+        wsdl_text = wsdl_text.replace('../xsd/', './')
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".wsdl", dir=str(LOCAL_WSDL_DIR), delete=False,
+            encoding="utf-8",
+        ) as tmp:
+            tmp.write(wsdl_text)
+            tmp_path = tmp.name
+
+        try:
+            client = ZeepClient(f"file://{tmp_path}", transport=transport)
+
+            # Override the default service address (http://www.cnj.jus.br)
+            # to the actual tribunal endpoint (strip ?wsdl suffix)
+            service_url = remote_url.replace("?wsdl", "").replace("?WSDL", "")
+            client.service._binding_options["address"] = service_url
+
+            return client
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
 
     def _normalize_processo(self, numero: str) -> str:
         """Strip formatting from process number to get 20 pure digits."""
