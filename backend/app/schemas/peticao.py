@@ -29,8 +29,13 @@ class Pessoa(BaseModel):
 
     nome: str
     tipo_pessoa: str = "fisica"  # fisica | juridica | autoridade | orgaorepresentacao
+    tipo_vinculacao: Optional[str] = None  # ex: IMPETRANTE, RÉU, TERCEIRO INTERESSADO
+    orgao_publico: bool = False  # órgão público?
     cpf: Optional[str] = None  # 11 dígitos (pessoa física)
+    sem_cpf: bool = False  # não possui CPF
     cnpj: Optional[str] = None  # 14 dígitos (pessoa jurídica)
+    sem_cnpj: bool = False  # não possui CNPJ
+    nome_fantasia: Optional[str] = None  # nome fantasia (pessoa jurídica)
     sexo: str = "D"  # M | F | D (desconhecido)
     data_nascimento: Optional[str] = None  # AAAAMMDD
     nome_genitor: Optional[str] = None
@@ -95,9 +100,10 @@ class DadosBasicos(BaseModel):
     competencia: int = 0
     nivel_sigilo: int = 0
     valor_causa: Optional[float] = None
-    prioridade: list[str] = []  # ex: ["JUÍZO 100% DIGITAL", "IDOSO"]
+    prioridade: list[str] = []  # PJe values: IDOSO, DOENCA_GRAVE, ECA, MARIA_DA_PENHA, etc.
     justica_gratuita: bool = False
     pedido_liminar: bool = False
+    juizo_digital: bool = False  # PJe: radio separado (NÃO é prioridade)
 
 
 class ConsultarProcessoRequest(BaseModel):
@@ -126,6 +132,9 @@ class PeticaoCreate(BaseModel):
     descricao: Optional[str] = None
     certificado_id: Optional[UUID] = None
     dados_basicos: Optional[DadosBasicos] = None
+    # Label exato do select PJe (ex: 'Petição intercorrente') — usado pelo scraper Playwright
+    tipo_documento_pje: Optional[str] = Field(None, max_length=200)
+    descricao_pje: Optional[str] = Field(None, max_length=500)
 
 
 class PeticaoUpdate(BaseModel):
@@ -140,6 +149,8 @@ class PeticaoUpdate(BaseModel):
     processo_numero: Optional[str] = Field(None, max_length=50)
     tipo_peticao: Optional[TipoPeticao] = None
     dados_basicos: Optional[DadosBasicos] = None
+    tipo_documento_pje: Optional[str] = Field(None, max_length=200)
+    descricao_pje: Optional[str] = Field(None, max_length=500)
 
 
 # --- Response schemas ---
@@ -199,6 +210,8 @@ class PeticaoResponse(BaseModel):
     tipo_peticao: TipoPeticao
     assunto: str
     descricao: Optional[str] = None
+    tipo_documento_pje: Optional[str] = None
+    descricao_pje: Optional[str] = None
     status: PeticaoStatus
     documentos: list[PeticaoDocumentoResponse] = []
     certificado_id: Optional[UUID] = None

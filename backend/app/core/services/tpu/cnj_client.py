@@ -23,7 +23,12 @@ class CnjTpuClient:
         """Download all assuntos from CNJ."""
         url = f"{self.BASE_URL}/download/assuntos"
         return await self._fetch_data(url)
-        
+
+    async def get_documentos(self) -> List[Dict[str, Any]]:
+        """Download all document types from CNJ."""
+        url = f"{self.BASE_URL}/download/documentos"
+        return await self._fetch_data(url)
+
     async def _fetch_data(self, url: str) -> List[Dict[str, Any]]:
         """Helper to fetch JSON data from CNJ."""
         logger.info(f"Fetching data from {url}")

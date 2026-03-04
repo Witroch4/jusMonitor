@@ -210,6 +210,9 @@ async def protocolar_via_scraper(
     tipo_documento: str = "Petição",
     descricao: str = "",
     totp_secret: Optional[str] = None,
+    totp_algorithm: Optional[str] = None,
+    totp_digits: Optional[int] = None,
+    totp_period: Optional[int] = None,
 ) -> dict:
     """Protocolar petição via Playwright (RPA) no scraper microservice.
 
@@ -235,6 +238,9 @@ async def protocolar_via_scraper(
                     "tipo_documento": tipo_documento,
                     "descricao": descricao,
                     "totp_secret": totp_secret,
+                    "totp_algorithm": totp_algorithm,
+                    "totp_digits": totp_digits,
+                    "totp_period": totp_period,
                 },
             )
             resp.raise_for_status()

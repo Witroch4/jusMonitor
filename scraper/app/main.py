@@ -171,9 +171,25 @@ async def scrape_protocolar_peticao(data: ProtocolarPeticaoRequest):
     Este endpoint NÃO usa o browser pool (precisa de mTLS dedicado).
     Lança browser dedicado com client_certificates do certificado A1.
     """
-    from app.scrapers.pje_peticionamento import protocolar_peticao_pje
+    from app.scrapers.pje_peticionamento import protocolar_peticao_pje, tribunal_from_processo
 
-    tribunal = data.tribunal.lower().strip()
+    if data.tribunal:
+        tribunal = data.tribunal.lower().strip()
+    else:
+        tribunal = tribunal_from_processo(data.numero_processo)
+        if not tribunal:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"Não foi possível inferir o tribunal do número '{data.numero_processo}'. "
+                    "Forneça o campo 'tribunal' explicitamente."
+                ),
+            )
+        logger.info(
+            "protocolar_peticao_request tribunal inferido automaticamente: %s (processo=%s)",
+            tribunal, data.numero_processo,
+        )
+
     logger.info(
         "protocolar_peticao_request tribunal=%s processo=%s tipo=%s desc=%s",
         tribunal, data.numero_processo, data.tipo_documento, data.descricao[:50],
@@ -188,6 +204,9 @@ async def scrape_protocolar_peticao(data: ProtocolarPeticaoRequest):
         tipo_documento=data.tipo_documento,
         descricao=data.descricao,
         totp_secret=data.totp_secret,
+        totp_algorithm=data.totp_algorithm,
+        totp_digits=data.totp_digits,
+        totp_period=data.totp_period,
     )
 
     logger.info(

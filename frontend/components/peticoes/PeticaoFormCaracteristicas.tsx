@@ -17,10 +17,19 @@ interface Props {
 }
 
 const PRIORIDADES_DISPONIVEIS = [
-  { value: 'JUÍZO 100% DIGITAL', label: 'Juízo 100% Digital', desc: 'Evita deslocamentos — todos os atos são eletrônicos' },
-  { value: 'IDOSO', label: 'Idoso (60+ anos)', desc: 'Prioridade de tramitação para pessoa idosa' },
-  { value: 'DOENÇA_GRAVE', label: 'Doença Grave', desc: 'Portador de doença grave' },
-  { value: 'CRIANÇA_ADOLESCENTE', label: 'Criança / Adolescente', desc: 'Envolve menor de 18 anos' },
+  { value: 'IDOSO', label: 'Idoso(a)', desc: 'Prioridade de tramitação para pessoa idosa', pjeValue: '420' },
+  { value: 'IDOSO_80', label: 'Idoso(a) maior de 80 anos', desc: 'Prioridade absoluta — art. 1.048 CPC', pjeValue: '421' },
+  { value: 'DOENCA_GRAVE', label: 'Doença Grave', desc: 'Portador(a) de doença grave', pjeValue: '424' },
+  { value: 'ECA', label: 'Criança / Adolescente (ECA)', desc: 'Art. 1048, II, do CPC — Estatuto da Criança e do Adolescente', pjeValue: '413' },
+  { value: 'PESSOA_DEFICIENCIA', label: 'Pessoa com deficiência', desc: 'Prioridade de tramitação para PcD', pjeValue: '422' },
+  { value: 'PESSOA_SITUACAO_RUA', label: 'Pessoa em situação de rua', desc: 'Prioridade especial', pjeValue: '423' },
+  { value: 'MARIA_DA_PENHA', label: 'Lei Maria da Penha', desc: 'Art. 1048, III, do CPC — violência doméstica', pjeValue: '414' },
+  { value: 'LICITACAO', label: 'Licitação', desc: 'Art. 1048, IV, do CPC — procedimento licitatório', pjeValue: '415' },
+  { value: 'PORTARIA_CNJ_7', label: 'Portaria Conjunta CNJ Nº 7/2023', desc: 'Art. 13 da portaria conjunta', pjeValue: '416' },
+  { value: 'LEI_11101', label: 'Lei 11.101/2005 (Recuperação/Falência)', desc: 'Art. 189-A da Lei de Recuperação Judicial', pjeValue: '417' },
+  { value: 'LEI_9507', label: 'Lei 9.507/1997 (Habeas Data)', desc: 'Art. 19 — procedimento de habeas data', pjeValue: '418' },
+  { value: 'LEI_12016', label: 'Lei 12.016/2009 (Mandado de Segurança)', desc: 'Art. 7°, §4° — mandado de segurança', pjeValue: '419' },
+  { value: 'REU_PRESO', label: 'Réu Preso', desc: 'Prioridade quando réu se encontra preso', pjeValue: '425' },
 ]
 
 const SIGILO_LABELS: Record<number, string> = {
@@ -164,8 +173,8 @@ export function PeticaoFormCaracteristicas({ dadosBasicos, onChange }: Props) {
           </div>
         </div>
 
-        {/* Justiça Gratuita + Pedido de Liminar */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        {/* Justiça Gratuita + Pedido de Liminar + Juízo 100% Digital */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           <RadioBool
             label="Justiça Gratuita"
             value={dadosBasicos.justicaGratuita}
@@ -175,6 +184,11 @@ export function PeticaoFormCaracteristicas({ dadosBasicos, onChange }: Props) {
             label="Pedido de Liminar / Tutela de Urgência"
             value={dadosBasicos.pedidoLiminar}
             onChange={(v) => onChange({ pedidoLiminar: v })}
+          />
+          <RadioBool
+            label="Juízo 100% Digital"
+            value={dadosBasicos.juizoDigital}
+            onChange={(v) => onChange({ juizoDigital: v })}
           />
         </div>
       </div>

@@ -117,6 +117,17 @@ class Peticao(TenantBaseModel):
         Text, nullable=True,
     )
 
+    # Tipo de documento e descrição específicos do PJe (select de 82 opções do tribunal)
+    # Quando preenchido, sobrescreve o tipo enum interno na chamada ao scraper Playwright
+    tipo_documento_pje: Mapped[Optional[str]] = mapped_column(
+        String(200), nullable=True,
+        comment="Label exato do select PJe (ex: 'Petição intercorrente', 'Contestação')",
+    )
+    descricao_pje: Mapped[Optional[str]] = mapped_column(
+        String(500), nullable=True,
+        comment="Descrição livre para o campo Descrição do formulário PJe",
+    )
+
     # MNI 2.2.2 dados básicos (polo[], orgaoJulgador, assuntos[], etc.)
     dados_basicos_json: Mapped[Optional[dict]] = mapped_column(
         JSONB, nullable=True,

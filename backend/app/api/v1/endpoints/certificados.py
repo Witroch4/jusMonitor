@@ -1,6 +1,9 @@
 """API endpoints for digital certificate management (A1 ICP-Brasil)."""
 
+import base64
 import logging
+from io import BytesIO
+from urllib.parse import parse_qs, urlparse
 from uuid import UUID
 
 import httpx
@@ -106,10 +109,10 @@ async def upload_certificado(
             detail=str(e),
         )
 
-    # Check for duplicate serial number
+    # Check for duplicate serial number (including revoked certs)
     repo = CertificadoDigitalRepository(session, tenant_id)
-    existing = await repo.get_by_serial(metadata.serial_number)
-    if existing:
+    existing = await repo.get_by_serial_any(metadata.serial_number)
+    if existing and not existing.revogado:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Certificado com serial {metadata.serial_number} já cadastrado",
@@ -119,22 +122,44 @@ async def upload_certificado(
     pfx_encrypted = crypto.encrypt(pfx_bytes)
     password_encrypted = crypto.encrypt_password(senha_pfx)
 
-    # Create record
-    cert = await repo.create(
-        nome=nome,
-        titular_nome=metadata.titular_nome,
-        titular_cpf_cnpj=metadata.titular_cpf_cnpj,
-        emissora=metadata.emissora,
-        serial_number=metadata.serial_number,
-        valido_de=metadata.valido_de,
-        valido_ate=metadata.valido_ate,
-        pfx_encrypted=pfx_encrypted,
-        pfx_password_encrypted=password_encrypted,
-    )
+    if existing and existing.revogado:
+        # Reactivate previously deleted certificate with new data
+        cert = await repo.update(
+            existing.id,
+            nome=nome,
+            titular_nome=metadata.titular_nome,
+            titular_cpf_cnpj=metadata.titular_cpf_cnpj,
+            emissora=metadata.emissora,
+            valido_de=metadata.valido_de,
+            valido_ate=metadata.valido_ate,
+            pfx_encrypted=pfx_encrypted,
+            pfx_password_encrypted=password_encrypted,
+            totp_secret_encrypted=None,
+            ultimo_teste_em=None,
+            ultimo_teste_resultado=None,
+            ultimo_teste_mensagem=None,
+            revogado=False,
+        )
+        action = "reactivated"
+    else:
+        # Create new record
+        cert = await repo.create(
+            nome=nome,
+            titular_nome=metadata.titular_nome,
+            titular_cpf_cnpj=metadata.titular_cpf_cnpj,
+            emissora=metadata.emissora,
+            serial_number=metadata.serial_number,
+            valido_de=metadata.valido_de,
+            valido_ate=metadata.valido_ate,
+            pfx_encrypted=pfx_encrypted,
+            pfx_password_encrypted=password_encrypted,
+        )
+        action = "uploaded"
+
     await session.commit()
 
     logger.info(
-        "Certificate uploaded",
+        f"Certificate {action}",
         extra={
             "cert_id": str(cert.id),
             "tenant_id": str(tenant_id),
@@ -288,3 +313,144 @@ async def configurar_totp_certificado(
         "configured" if totp_secret else "removed",
         extra={"cert_id": str(cert_id), "tenant_id": str(tenant_id)},
     )
+
+
+@router.post("/{cert_id}/totp-qr")
+async def configurar_totp_via_qr(
+    cert_id: UUID,
+    imagem: UploadFile = File(..., description="Screenshot ou foto do QR Code TOTP"),
+    tenant_id: UUID = Depends(get_current_tenant_id),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> dict:
+    """Upload screenshot/foto de QR Code TOTP, decodifica e armazena o segredo.
+
+    Aceita imagens PNG, JPG, WebP, BMP contendo um QR code com URI otpauth://totp/...
+    Extrai o segredo base32, criptografa com Fernet e salva no certificado.
+    """
+    repo = CertificadoDigitalRepository(session, tenant_id)
+    cert = await repo.get(cert_id)
+
+    if cert is None or cert.revogado:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Certificado não encontrado",
+        )
+
+    image_bytes = await imagem.read()
+    if not image_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Imagem vazia",
+        )
+
+    # Decode QR code from image
+    try:
+        from PIL import Image
+        from pyzbar.pyzbar import decode as decode_qr
+
+        img = Image.open(BytesIO(image_bytes))
+        qr_results = decode_qr(img)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Erro ao processar imagem: {e}",
+        )
+
+    if not qr_results:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Nenhum QR Code encontrado na imagem. Tente com uma foto mais nítida.",
+        )
+
+    # Log all QR codes found for debugging
+    for i, qr in enumerate(qr_results):
+        data = qr.data.decode("utf-8", errors="ignore")
+        logger.info(
+            "QR code #%d found: type=%s data=%s",
+            i,
+            qr.type,
+            data[:200],
+            extra={"cert_id": str(cert_id)},
+        )
+
+    # Find otpauth:// URI
+    totp_uri = None
+    for qr in qr_results:
+        data = qr.data.decode("utf-8", errors="ignore")
+        if data.startswith("otpauth://"):
+            totp_uri = data
+            break
+
+    if not totp_uri:
+        # Return what was found for debugging
+        found_data = [qr.data.decode("utf-8", errors="ignore")[:100] for qr in qr_results]
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"QR Code não contém URI TOTP válida (otpauth://...). Encontrado: {found_data}",
+        )
+
+    logger.info(
+        "TOTP URI decoded: %s",
+        totp_uri,
+        extra={"cert_id": str(cert_id), "tenant_id": str(tenant_id)},
+    )
+
+    # Parse secret from URI
+    parsed = urlparse(totp_uri)
+    params = parse_qs(parsed.query)
+    secret = params.get("secret", [None])[0]
+    algorithm = params.get("algorithm", ["SHA1"])[0].upper()
+    digits = int(params.get("digits", ["6"])[0])
+    period = int(params.get("period", ["30"])[0])
+
+    if not secret:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"URI TOTP não contém parâmetro 'secret'. URI: {totp_uri[:200]}",
+        )
+
+    # Validate base32
+    secret_upper = secret.upper()
+    try:
+        base64.b32decode(secret_upper)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Segredo TOTP não é base32 válido.",
+        )
+
+    # Build JSON payload with all TOTP params (not just secret)
+    import json
+
+    totp_payload = json.dumps({
+        "secret": secret_upper,
+        "algorithm": algorithm,
+        "digits": digits,
+        "period": period,
+        "issuer": params.get("issuer", [None])[0],
+        "uri": totp_uri,
+    })
+
+    # Encrypt and store full TOTP config
+    crypto = _get_crypto_service()
+    totp_encrypted = crypto.encrypt(totp_payload.encode())
+    await repo.update(cert_id, totp_secret_encrypted=totp_encrypted)
+    await session.commit()
+
+    logger.info(
+        "Certificate TOTP configured via QR (algo=%s, digits=%d, period=%ds)",
+        algorithm,
+        digits,
+        period,
+        extra={"cert_id": str(cert_id), "tenant_id": str(tenant_id)},
+    )
+
+    masked = secret_upper[:4] + "****" + secret_upper[-4:] if len(secret_upper) > 8 else "****"
+    return {
+        "mensagem": "TOTP configurado com sucesso",
+        "secret_masked": masked,
+        "algorithm": algorithm,
+        "digits": digits,
+        "period": period,
+    }

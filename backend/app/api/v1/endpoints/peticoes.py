@@ -4,14 +4,17 @@ import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.auth.dependencies import get_current_tenant_id, get_current_user
 from app.core.services.certificados.crypto import CertificateCryptoService
 from app.core.services.peticoes.peticao_service import PeticaoService
+from app.data.tipos_documento_pje import get_tipos_documento
 from app.db.engine import get_db
 from app.db.models.peticao import PeticaoStatus, TipoDocumento
+from app.db.models.tpu import TpuDocumento
 from app.db.models.user import User
 from app.db.repositories.peticao import (
     PeticaoDocumentoRepository,
@@ -36,8 +39,65 @@ router = APIRouter(prefix="/peticoes", tags=["peticoes"])
 _service = PeticaoService()
 
 
+
+
+
 def _get_crypto_service() -> CertificateCryptoService:
     return CertificateCryptoService(settings.encrypt_key)
+
+
+# --- Static reference data ---
+
+
+@router.get("/tipos-documento")
+async def get_tipos_documento_por_tribunal(
+    tribunal_id: str = Query(..., min_length=1, max_length=20),
+    _tenant_id: UUID = Depends(get_current_tenant_id),
+    _current_user: User = Depends(get_current_user),
+) -> dict:
+    """Retorna os tipos de documento dispóniveis no PJe para o tribunal.
+
+    Retorna a lista exata dos labels do select `cbTDDecoration:cbTD`
+    capturada via RPA. Usar como valor no campo tipoPeticaoPje do formulário.
+    """
+    tipos = get_tipos_documento(tribunal_id)
+    return {"tribunal_id": tribunal_id, "tipos": tipos, "total": len(tipos)}
+
+
+@router.get("/tipos-documento-tpu")
+async def get_tipos_documento_tpu(
+    tribunal_id: str = Query(..., min_length=1, max_length=20),
+    _tenant_id: UUID = Depends(get_current_tenant_id),
+    _current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> dict:
+    """Retorna tipos de documento da Tabela Processual Unificada (CNJ).
+
+    Lê da tabela local `tpu_documentos` (populada e revalidada semanalmente
+    pelo worker tpu_sync). Cada item: cod_item (int), nome (str), descricao (str).
+    """
+    result = await session.execute(
+        select(TpuDocumento)
+        .where(TpuDocumento.cod_item_pai.isnot(None))
+        .order_by(TpuDocumento.nome)
+    )
+    docs = result.scalars().all()
+
+    if not docs:
+        raise HTTPException(
+            status_code=503,
+            detail="Tabela TPU de documentos ainda não sincronizada. Aguarde o sync automático ou acione manualmente.",
+        )
+
+    tipos = [
+        {
+            "cod_item": d.codigo,
+            "nome": d.nome,
+            "descricao": d.glossario or "",
+        }
+        for d in docs
+    ]
+    return {"tribunal_id": tribunal_id, "tipos": tipos, "total": len(tipos)}
 
 
 # --- List ---
@@ -138,7 +198,14 @@ async def update_peticao(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Petição não encontrada",
         )
-    if pet.status != PeticaoStatus.RASCUNHO:
+    if pet.status == PeticaoStatus.REJEITADA:
+        # Auto-transition REJEITADA → RASCUNHO when editing
+        await _service.transition_status(
+            session, tenant_id, peticao_id,
+            PeticaoStatus.RASCUNHO,
+            "Petição reaberta para correção e reenvio",
+        )
+    elif pet.status != PeticaoStatus.RASCUNHO:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Apenas petições em rascunho podem ser editadas",

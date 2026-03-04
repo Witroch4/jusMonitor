@@ -96,6 +96,7 @@ services:
     env_file: .env
     volumes:
       - ./scraper:/app
+      - ./docs:/app/shared-docs
     networks:
       - backend-net
     healthcheck:

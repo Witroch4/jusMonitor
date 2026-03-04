@@ -10,7 +10,7 @@ import { PeticaoFormCertificado } from './PeticaoFormCertificado'
 import { PeticaoFormRevisao, useRevisaoValidation } from './PeticaoFormRevisao'
 import { PeticaoAnaliseIA } from './PeticaoAnaliseIA'
 import { CertificadoModal } from './CertificadoModal'
-import { useCreatePeticao, useUploadDocumento, useProtocolar } from '@/hooks/api/usePeticoes'
+import { useCreatePeticao, useUpdatePeticao, useUploadDocumento, useProtocolar, usePeticao, useDeleteDocumento } from '@/hooks/api/usePeticoes'
 import { useQueryClient } from '@tanstack/react-query'
 import { useProfile } from '@/hooks/api/useProfile'
 import { TRIBUNAIS } from '@/lib/data/tribunais'
@@ -20,6 +20,8 @@ import { toast } from 'sonner'
 
 interface Props {
   onVoltar: () => void
+  rascunhoId?: string
+  initialProcessoNumero?: string
 }
 
 const INITIAL_FORM: NovaPeticaoFormData = {
@@ -38,8 +40,12 @@ const INITIAL_FORM: NovaPeticaoFormData = {
   },
 }
 
-export function PeticaoForm({ onVoltar }: Props) {
-  const [formData, setFormData] = useState<NovaPeticaoFormData>(INITIAL_FORM)
+export function PeticaoForm({ onVoltar, rascunhoId, initialProcessoNumero }: Props) {
+  const isEditMode = !!rascunhoId
+  const [formData, setFormData] = useState<NovaPeticaoFormData>(() => (
+    initialProcessoNumero ? { ...INITIAL_FORM, processoNumero: initialProcessoNumero } : INITIAL_FORM
+  ))
+  const [formPopulated, setFormPopulated] = useState(false)
   const [files, setFiles] = useState<UploadedFile[]>([])
   const [analise, setAnalise] = useState<AnaliseIA | null>(null)
   const [certModalOpen, setCertModalOpen] = useState(false)
@@ -47,8 +53,30 @@ export function PeticaoForm({ onVoltar }: Props) {
 
   const queryClient = useQueryClient()
   const createPeticao = useCreatePeticao()
+  const updatePeticao = useUpdatePeticao()
   const uploadDocumento = useUploadDocumento()
+  const deleteDocumento = useDeleteDocumento()
   const protocolar = useProtocolar()
+
+  // Fetch existing draft when editing
+  const { data: rascunho, isLoading: isLoadingRascunho } = usePeticao(rascunhoId ?? '')
+
+  // Pre-populate form from fetched draft
+  useEffect(() => {
+    if (!isEditMode || formPopulated || !rascunho) return
+    setFormData({
+      tribunalId: rascunho.tribunalId ?? '',
+      processoNumero: rascunho.processoNumero ?? '',
+      tipoPeticao: rascunho.tipoPeticao ?? '',
+      assunto: rascunho.assunto ?? '',
+      descricao: rascunho.descricao ?? '',
+      certificadoId: rascunho.certificadoId ?? '',
+      dadosBasicos: INITIAL_FORM.dadosBasicos,
+      tipoPeticaoPje: rascunho.tipoPeticaoPje ?? '',
+      descricaoPje: rascunho.descricaoPje ?? '',
+    })
+    setFormPopulated(true)
+  }, [rascunho, isEditMode, formPopulated])
   const { data: profile } = useProfile()
 
   // Auto-preencher advogado do Polo Ativo com dados do perfil do usuário
@@ -75,7 +103,7 @@ export function PeticaoForm({ onVoltar }: Props) {
       return prev
     })
   }, [profile])
-  const isValid = useRevisaoValidation(formData, files)
+  const isValid = useRevisaoValidation(formData, files, null, isEditMode ? (rascunho?.documentos ?? []) : [])
 
   const updateDadosBasicos = useCallback((partial: Partial<NovaPeticaoFormData['dadosBasicos']>) => {
     setFormData((prev) => ({
@@ -102,15 +130,32 @@ export function PeticaoForm({ onVoltar }: Props) {
     setIsSubmitting(true)
 
     try {
-      // 1. Create petition with form data
-      const peticao = await createPeticao.mutateAsync(formData)
+      let peticaoId: string
 
-      // 2. Upload each file to the created petition
+      if (isEditMode && rascunhoId) {
+        // Update existing draft first
+        await updatePeticao.mutateAsync({
+          id: rascunhoId,
+          tribunalId: formData.tribunalId || undefined,
+          processoNumero: formData.processoNumero || undefined,
+          tipoPeticao: formData.tipoPeticao || undefined,
+          assunto: formData.assunto || undefined,
+          descricao: formData.descricao || undefined,
+          certificadoId: formData.certificadoId || undefined,
+        })
+        peticaoId = rascunhoId
+      } else {
+        // Create new petition
+        const peticao = await createPeticao.mutateAsync(formData)
+        peticaoId = peticao.id
+      }
+
+      // Upload any new files
       const uploadedFiles = files.filter((f) => f.status === 'uploaded')
       for (let i = 0; i < uploadedFiles.length; i++) {
         const f = uploadedFiles[i]
         await uploadDocumento.mutateAsync({
-          peticaoId: peticao.id,
+          peticaoId,
           arquivo: f.file,
           tipoDocumento: f.tipoDocumento,
           ordem: i + 1,
@@ -118,10 +163,9 @@ export function PeticaoForm({ onVoltar }: Props) {
         })
       }
 
-      // 3. Trigger filing via worker
-      await protocolar.mutateAsync(peticao.id)
+      // Trigger filing via worker
+      await protocolar.mutateAsync(peticaoId)
 
-      // Invalidar cache para que aba Casos mostre o novo processo
       queryClient.invalidateQueries({ queryKey: ['peticoes', 'protocoladas'] })
       toast.success('Petição enviada para protocolo!')
       onVoltar()
@@ -145,15 +189,31 @@ export function PeticaoForm({ onVoltar }: Props) {
     setIsSubmitting(true)
 
     try {
-      // 1. Create petition
-      const peticao = await createPeticao.mutateAsync(formData)
+      let peticaoId: string
 
-      // 2. Upload files if any
+      if (isEditMode && rascunhoId) {
+        // Update existing draft
+        await updatePeticao.mutateAsync({
+          id: rascunhoId,
+          tribunalId: formData.tribunalId || undefined,
+          processoNumero: formData.processoNumero || undefined,
+          tipoPeticao: formData.tipoPeticao || undefined,
+          assunto: formData.assunto || undefined,
+          descricao: formData.descricao || undefined,
+          certificadoId: formData.certificadoId || undefined,
+        })
+        peticaoId = rascunhoId
+      } else {
+        const peticao = await createPeticao.mutateAsync(formData)
+        peticaoId = peticao.id
+      }
+
+      // Upload any new files
       const uploadedFiles = files.filter((f) => f.status === 'uploaded')
       for (let i = 0; i < uploadedFiles.length; i++) {
         const f = uploadedFiles[i]
         await uploadDocumento.mutateAsync({
-          peticaoId: peticao.id,
+          peticaoId,
           arquivo: f.file,
           tipoDocumento: f.tipoDocumento,
           ordem: i + 1,
@@ -171,6 +231,16 @@ export function PeticaoForm({ onVoltar }: Props) {
     }
   }
 
+  if (isEditMode && isLoadingRascunho) {
+    return (
+      <div className="space-y-6">
+        <div className="h-8 w-48 bg-muted animate-pulse rounded" />
+        <div className="h-6 w-96 bg-muted animate-pulse rounded" />
+        <div className="h-[400px] w-full bg-muted animate-pulse rounded-xl" />
+      </div>
+    )
+  }
+
   return (
     <>
       <div className="min-h-full pb-28">
@@ -185,7 +255,7 @@ export function PeticaoForm({ onVoltar }: Props) {
               Voltar para Petições
             </button>
             <h1 className="font-display text-3xl md:text-4xl font-bold text-foreground mb-1">
-              Nova Petição
+              {isEditMode ? 'Continuar Petição' : 'Nova Petição'}
             </h1>
             <p className="text-muted-foreground text-base">
               Preencha os dados e protocole eletronicamente
@@ -225,8 +295,16 @@ export function PeticaoForm({ onVoltar }: Props) {
               dadosBasicos={formData.dadosBasicos || { polos: [], assuntos: [] }}
               onChange={updateDadosBasicos}
             />
-            <PeticaoFormUpload files={files} onFilesChange={setFiles} limiteArquivoMB={limiteArquivoMB} />
-            <PeticaoFormRevisao formData={formData} files={files} analise={analise} />
+            <PeticaoFormUpload
+              files={files}
+              onFilesChange={setFiles}
+              limiteArquivoMB={limiteArquivoMB}
+              existingDocuments={isEditMode ? (rascunho?.documentos ?? []) : []}
+              onDeleteExisting={isEditMode && rascunhoId ? (docId) => {
+                deleteDocumento.mutate({ peticaoId: rascunhoId, docId })
+              } : undefined}
+            />
+            <PeticaoFormRevisao formData={formData} files={files} analise={analise} existingDocuments={isEditMode ? (rascunho?.documentos ?? []) : []} />
           </div>
 
           {/* Right column - AI + Certificate */}

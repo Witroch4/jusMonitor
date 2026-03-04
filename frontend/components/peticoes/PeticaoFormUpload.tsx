@@ -12,12 +12,14 @@ import {
 } from '@/components/ui/select'
 import { Upload } from 'lucide-react'
 import { TIPO_DOCUMENTO_LABELS } from '@/types/peticoes'
-import type { TipoDocumento, UploadedFile } from '@/types/peticoes'
+import type { TipoDocumento, UploadedFile, PeticaoDocumento } from '@/types/peticoes'
 
 interface Props {
   files: UploadedFile[]
   onFilesChange: (files: UploadedFile[]) => void
   limiteArquivoMB: number
+  existingDocuments?: PeticaoDocumento[]
+  onDeleteExisting?: (docId: string) => void
 }
 
 function formatFileSize(bytes: number): string {
@@ -30,7 +32,7 @@ function generateId(): string {
   return `file-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
-export function PeticaoFormUpload({ files, onFilesChange, limiteArquivoMB }: Props) {
+export function PeticaoFormUpload({ files, onFilesChange, limiteArquivoMB, existingDocuments = [], onDeleteExisting }: Props) {
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const limitBytes = limiteArquivoMB * 1024 * 1024
@@ -144,6 +146,45 @@ export function PeticaoFormUpload({ files, onFilesChange, limiteArquivoMB }: Pro
           onChange={(e) => e.target.files && addFiles(e.target.files)}
         />
       </div>
+
+      {/* Existing server-side documents (from saved draft) */}
+      {existingDocuments.length > 0 && (
+        <div className="mt-4 space-y-2">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-1">Documentos já enviados</p>
+          {existingDocuments.map((doc) => (
+            <div
+              key={doc.id}
+              className="flex items-center justify-between p-3 rounded-xl border bg-emerald-500/5 border-emerald-500/20"
+            >
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <span className="material-symbols-outlined text-2xl shrink-0 text-red-500">picture_as_pdf</span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground truncate">{doc.nomeOriginal}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-xs text-muted-foreground">{formatFileSize(doc.tamanhoBytes)}</span>
+                    <span className="text-xs font-medium bg-muted/50 px-1.5 py-0.5 rounded">
+                      {TIPO_DOCUMENTO_LABELS[doc.tipoDocumento]}
+                    </span>
+                    <span className="text-xs text-emerald-600 flex items-center gap-0.5">
+                      <span className="material-symbols-outlined text-xs">check_circle</span>
+                      Salvo
+                    </span>
+                  </div>
+                </div>
+              </div>
+              {onDeleteExisting && (
+                <button
+                  onClick={() => onDeleteExisting(doc.id)}
+                  className="text-muted-foreground hover:text-destructive transition-colors p-1 shrink-0"
+                  title="Remover documento"
+                >
+                  <span className="material-symbols-outlined text-lg">delete</span>
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* File list */}
       {files.length > 0 && (

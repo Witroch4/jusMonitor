@@ -29,6 +29,13 @@ class CertificadoResponse(BaseModel):
     ultimo_teste_em: Optional[datetime] = None
     ultimo_teste_resultado: Optional[str] = None
     criado_em: datetime = Field(validation_alias="created_at")
+    totp_secret_encrypted: Optional[bytes] = Field(default=None, exclude=True)
+
+    @computed_field
+    @property
+    def totp_configurado(self) -> bool:
+        """Whether TOTP 2FA is configured for this certificate."""
+        return self.totp_secret_encrypted is not None
 
     @computed_field
     @property

@@ -1,22 +1,34 @@
 'use client'
 
-import { use } from 'react'
+import { use, useState } from 'react'
 import Link from 'next/link'
-import { Badge } from '@/components/ui/badge'
+import { useRouter } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
 import { PeticaoStatusBadge } from '@/components/peticoes/PeticaoStatusBadge'
 import { PeticaoStatusTimeline } from '@/components/peticoes/PeticaoStatusTimeline'
 import { PeticaoDocumentos } from '@/components/peticoes/PeticaoDocumentos'
 import { PeticaoAnaliseIA } from '@/components/peticoes/PeticaoAnaliseIA'
-import { usePeticao } from '@/hooks/api/usePeticoes'
+import { usePeticao, usePeticaoEventos } from '@/hooks/api/usePeticoes'
 import { TRIBUNAIS } from '@/lib/data/tribunais'
 import { TIPO_PETICAO_LABELS } from '@/types/peticoes'
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft, ChevronDown, ChevronUp, Pencil } from 'lucide-react'
+
+function parseDetalhes(raw: string): { isJson: boolean; parsed: unknown } {
+  try {
+    return { isJson: true, parsed: JSON.parse(raw) }
+  } catch {
+    return { isJson: false, parsed: raw }
+  }
+}
 
 export default function PeticaoDetalhePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
+  const router = useRouter()
   const { data: peticao, isLoading } = usePeticao(id)
+  const { data: eventos } = usePeticaoEventos(id)
+  const [logsExpanded, setLogsExpanded] = useState(false)
 
   if (isLoading) {
     return (
@@ -42,6 +54,12 @@ export default function PeticaoDetalhePage({ params }: { params: Promise<{ id: s
   }
 
   const tribunal = TRIBUNAIS.find((t) => t.id === peticao.tribunalId)
+
+  const rejectionEvento = eventos
+    ?.filter((e) => e.status === 'rejeitada')
+    .sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime())[0]
+
+  const canEdit = peticao.status === 'rejeitada' || peticao.status === 'rascunho'
 
   return (
     <div className="space-y-6">
@@ -73,17 +91,58 @@ export default function PeticaoDetalhePage({ params }: { params: Promise<{ id: s
               <span>{TIPO_PETICAO_LABELS[peticao.tipoPeticao]}</span>
             </div>
           </div>
-        </div>
+          {canEdit && (
+            <Button
+              onClick={() => router.push(`/peticoes?edit=${peticao.id}`)}
+              className="gap-2 shrink-0"
+            >
+              <Pencil className="h-4 w-4" />
+              {peticao.status === 'rejeitada' ? 'Corrigir e Reenviar' : 'Editar Rascunho'}
+            </Button>
+          )}        </div>
       </div>
 
       {/* Rejection banner */}
       {peticao.status === 'rejeitada' && peticao.motivoRejeicao && (
-        <div className="flex items-start gap-3 p-4 rounded-xl bg-destructive/5 border border-destructive/20">
-          <span className="material-symbols-outlined text-destructive text-xl shrink-0">error</span>
-          <div>
-            <p className="text-sm font-semibold text-destructive mb-1">Motivo da Rejeição</p>
-            <p className="text-sm text-destructive/80">{peticao.motivoRejeicao}</p>
+        <div className="rounded-xl bg-destructive/5 border border-destructive/20 overflow-hidden">
+          <div className="flex items-start gap-3 p-4">
+            <span className="material-symbols-outlined text-destructive text-xl shrink-0">error</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-destructive mb-1">Motivo da Rejeição</p>
+              <p className="text-sm text-destructive/80">{peticao.motivoRejeicao}</p>
+            </div>
+            {rejectionEvento?.detalhes && (
+              <button
+                onClick={() => setLogsExpanded((v) => !v)}
+                className="flex items-center gap-1 text-xs text-destructive/70 hover:text-destructive font-medium shrink-0 mt-0.5 transition-colors"
+              >
+                {logsExpanded ? (
+                  <>Ocultar logs <ChevronUp className="h-3.5 w-3.5" /></>
+                ) : (
+                  <>Ver logs detalhados <ChevronDown className="h-3.5 w-3.5" /></>
+                )}
+              </button>
+            )}
           </div>
+
+          {logsExpanded && rejectionEvento?.detalhes && (() => {
+            const { isJson, parsed } = parseDetalhes(rejectionEvento.detalhes!)
+            return (
+              <div className="border-t border-destructive/20 bg-destructive/[0.03] p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-destructive/60 tracking-widest uppercase">
+                    Logs de Erro
+                  </span>
+                  <span className="text-[10px] text-muted-foreground font-mono">
+                    {new Date(rejectionEvento.criadoEm).toLocaleString('pt-BR')}
+                  </span>
+                </div>
+                <pre className="text-xs font-mono text-destructive/80 bg-destructive/5 border border-destructive/15 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-words max-h-64 overflow-y-auto">
+                  {isJson ? JSON.stringify(parsed, null, 2) : String(parsed)}
+                </pre>
+              </div>
+            )
+          })()}
         </div>
       )}
 

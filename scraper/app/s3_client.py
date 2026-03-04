@@ -30,7 +30,10 @@ def _get_s3_client():
 
 
 def upload_file(key: str, data: bytes, content_type: str = "application/pdf") -> str:
-    """Upload file to S3 and return the object URL.
+    """Upload file to S3 and return the object key URL (internal reference).
+
+    NOTE: The bucket is private. This URL is stored in the DB and converted to
+    a presigned URL on-demand by the backend /api/v1/storage/presign endpoint.
 
     Args:
         key: S3 object key (e.g. "processos/1234567-89.2025.4.01.3904/docs/01_sentenca.pdf")
@@ -38,7 +41,7 @@ def upload_file(key: str, data: bytes, content_type: str = "application/pdf") ->
         content_type: MIME type.
 
     Returns:
-        Public URL of the uploaded object.
+        Path-style URL of the uploaded object (unauthenticated — for DB storage only).
     """
     client = _get_s3_client()
     bucket = settings.s3_bucket
@@ -55,4 +58,30 @@ def upload_file(key: str, data: bytes, content_type: str = "application/pdf") ->
         return url
     except ClientError as e:
         logger.error("s3_upload_error", extra={"key": key, "error": str(e)})
+        raise
+
+
+def generate_presigned_url(key: str, expiry_seconds: int = 3600) -> str:
+    """Generate a presigned GET URL for a private S3 object.
+
+    Args:
+        key: S3 object key (e.g. "processos/.../documentos/72982910.pdf").
+        expiry_seconds: URL validity window. Default: 1 hour.
+
+    Returns:
+        Time-limited presigned URL that can be used directly in a browser.
+    """
+    client = _get_s3_client()
+    bucket = settings.s3_bucket
+
+    try:
+        presigned = client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": bucket, "Key": key},
+            ExpiresIn=expiry_seconds,
+        )
+        logger.info("s3_presign_ok", extra={"key": key, "expiry": expiry_seconds})
+        return presigned
+    except ClientError as e:
+        logger.error("s3_presign_error", extra={"key": key, "error": str(e)})
         raise

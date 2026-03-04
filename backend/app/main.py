@@ -403,6 +403,11 @@ from app.api.v1.endpoints.casos_oab import router as casos_oab_router
 
 app.include_router(casos_oab_router, prefix=settings.api_v1_prefix, tags=["casos-oab"])
 
+# S3/MinIO storage — presigned URL generation
+from app.api.v1.endpoints.storage import router as storage_router
+
+app.include_router(storage_router, prefix=settings.api_v1_prefix, tags=["storage"])
+
 # Serve static files (avatars, etc.)
 import os
 

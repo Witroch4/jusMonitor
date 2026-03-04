@@ -118,7 +118,7 @@ class BaixarDocumentoResponse(BaseModel):
 
 class ProtocolarPeticaoRequest(BaseModel):
     """Request para protocolar petição via Playwright (RPA)."""
-    tribunal: str = Field(..., min_length=2, max_length=20, description="Código do tribunal (ex: trf1)")
+    tribunal: str | None = Field(default=None, min_length=2, max_length=20, description="Código do tribunal (ex: trf1). Se omitido, será inferido automaticamente do número CNJ do processo.")
     numero_processo: str = Field(..., description="Número formatado do processo")
     pfx_base64: str = Field(..., description="Certificado A1 (PFX) em base64")
     pfx_password: str = Field(..., description="Senha do certificado PFX")
@@ -126,6 +126,9 @@ class ProtocolarPeticaoRequest(BaseModel):
     tipo_documento: str = Field(default="Petição", description="Tipo do documento no PJe")
     descricao: str = Field(default="", description="Descrição do documento")
     totp_secret: str | None = Field(default=None, description="Segredo TOTP base32 para 2FA do SSO PJe")
+    totp_algorithm: str | None = Field(default=None, description="Algoritmo TOTP (SHA1, SHA256, SHA512)")
+    totp_digits: int | None = Field(default=None, description="Número de dígitos TOTP (6 ou 8)")
+    totp_period: int | None = Field(default=None, description="Período TOTP em segundos (30 ou 60)")
 
 
 class ProtocolarPeticaoResponse(BaseModel):

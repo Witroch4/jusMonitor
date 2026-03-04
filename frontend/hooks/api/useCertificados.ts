@@ -61,12 +61,54 @@ export function useUploadCertificado() {
   })
 }
 
+interface TotpQrResponse {
+  mensagem: string
+  secret_masked: string
+}
+
+export function useConfigurarTotpQr() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (params: {
+      certId: string
+      imagem: File
+    }): Promise<TotpQrResponse> => {
+      const formData = new FormData()
+      formData.append('imagem', params.imagem)
+
+      const { data } = await apiClient.post<TotpQrResponse>(
+        `/certificados/${params.certId}/totp-qr`,
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } },
+      )
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['certificados'] })
+    },
+  })
+}
+
 export function useRemoverCertificado() {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async (id: string): Promise<void> => {
       await apiClient.delete(`/certificados/${id}`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['certificados'] })
+    },
+  })
+}
+
+export function useRemoverTotp() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (certId: string): Promise<void> => {
+      await apiClient.patch(`/certificados/${certId}/totp`, { totp_secret: null })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['certificados'] })

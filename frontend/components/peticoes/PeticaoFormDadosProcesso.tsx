@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useRef, useEffect } from 'react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -15,6 +16,9 @@ import {
 import { TRIBUNAIS, JURISDICAO_ORDER, getTribunaisByJurisdicao } from '@/lib/data/tribunais'
 import { TIPO_PETICAO_LABELS } from '@/types/peticoes'
 import type { TribunalId, TipoPeticao, NovaPeticaoFormData, DadosBasicos } from '@/types/peticoes'
+import { useCasosOAB } from '@/hooks/api/useCasosOAB'
+import { useTiposDocumentoPje, useTiposDocumentoTPU } from '@/hooks/api/usePeticoes'
+import { maskProcessoNumero, isProcessoNumeroValido, tribunalFromProcesso } from '@/lib/utils/processo'
 
 // codigoLocalidade PJe/MNI — código interno de cada seção judiciária.
 // Fonte: tabela interna do PJe (NÃO é código IBGE nem CNJ TPU).
@@ -74,6 +78,56 @@ const tribunaisPorJurisdicao = getTribunaisByJurisdicao()
 export function PeticaoFormDadosProcesso({ formData, onChange, dadosBasicos, onDadosBasicosChange }: Props) {
   const selectedTribunal = TRIBUNAIS.find((t) => t.id === formData.tribunalId)
   const isPeticaoInicial = formData.tipoPeticao === 'peticao_inicial'
+  const [tribunalAutoDetectado, setTribunalAutoDetectado] = useState(false)
+
+  // Tipos de documento do PJe para o tribunal selecionado
+  const { data: tiposPje = [], isLoading: isLoadingTipos } = useTiposDocumentoPje(
+    formData.tribunalId || undefined
+  )
+
+  // Tipos de documento da Tabela Processual Unificada (CNJ oficial)
+  const { data: tiposTPU = [], isLoading: isLoadingTPU } = useTiposDocumentoTPU(
+    formData.tribunalId || undefined
+  )
+
+  // Auto-detect tribunal when process number is pre-filled (e.g. from URL query param)
+  useEffect(() => {
+    if (formData.processoNumero && !formData.tribunalId) {
+      const detected = tribunalFromProcesso(formData.processoNumero)
+      if (detected) {
+        onChange({ tribunalId: detected as TribunalId })
+        setTribunalAutoDetectado(true)
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.processoNumero])
+
+  // --- Process number autocomplete ---
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const wrapperRef = useRef<HTMLDivElement>(null)
+  const { data: casosData } = useCasosOAB()
+  const savedProcessos = casosData?.items ?? []
+
+  const filterQuery = (formData.processoNumero ?? '').trim().toLowerCase()
+  const filteredProcessos = savedProcessos
+    .filter((p) => {
+      if (!filterQuery) return true
+      return (
+        p.numero.toLowerCase().includes(filterQuery) ||
+        (p.partesResumo ?? '').toLowerCase().includes(filterQuery)
+      )
+    })
+    .slice(0, 8)
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   return (
     <div className="bg-card border border-border rounded-2xl p-8 shadow-sm">
@@ -88,7 +142,10 @@ export function PeticaoFormDadosProcesso({ formData, onChange, dadosBasicos, onD
           <Label className="text-sm font-medium mb-2 block">Tribunal de Destino</Label>
           <Select
             value={formData.tribunalId || undefined}
-            onValueChange={(v) => onChange({ tribunalId: v as TribunalId })}
+            onValueChange={(v) => {
+              onChange({ tribunalId: v as TribunalId })
+              setTribunalAutoDetectado(false) // usuário escolheu manualmente
+            }}
           >
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Selecionar Tribunal..." />
@@ -117,6 +174,12 @@ export function PeticaoFormDadosProcesso({ formData, onChange, dadosBasicos, onD
               })}
             </SelectContent>
           </Select>
+          {tribunalAutoDetectado && formData.tribunalId && (
+            <p className="mt-1.5 text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+              <span className="material-symbols-outlined text-xs">auto_fix_high</span>
+              Detectado automaticamente pelo número do processo
+            </p>
+          )}
           {selectedTribunal?.avisoInstabilidade && (
             <div className="mt-2 flex items-start gap-2 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
               <span className="material-symbols-outlined text-yellow-600 text-sm shrink-0 mt-0.5">warning</span>
@@ -160,25 +223,165 @@ export function PeticaoFormDadosProcesso({ formData, onChange, dadosBasicos, onD
                 <span className="ml-1.5 text-xs font-normal text-muted-foreground">(gerado pelo tribunal)</span>
               )}
             </Label>
-            <div className="relative">
+            <div className="relative" ref={wrapperRef}>
               <Input
                 value={isPeticaoInicial ? '' : formData.processoNumero}
-                onChange={(e) => onChange({ processoNumero: e.target.value })}
+                onChange={(e) => {
+                  const masked = maskProcessoNumero(e.target.value)
+                  const updates: Partial<typeof formData> = { processoNumero: masked }
+                  // Auto-detectar tribunal pelo número CNJ
+                  const detected = tribunalFromProcesso(masked)
+                  if (detected && !formData.tribunalId) {
+                    updates.tribunalId = detected as TribunalId
+                    setTribunalAutoDetectado(true)
+                  } else if (detected && formData.tribunalId !== detected) {
+                    // Número mudou para outro tribunal — atualiza se foi auto-detectado antes
+                    if (tribunalAutoDetectado) {
+                      updates.tribunalId = detected as TribunalId
+                    }
+                  } else if (!detected) {
+                    setTribunalAutoDetectado(false)
+                  }
+                  onChange(updates)
+                  if (masked.replace(/\D/g, '').length > 0) setDropdownOpen(false)
+                }}
+                onFocus={() => {
+                  if (!isPeticaoInicial && savedProcessos.length > 0) setDropdownOpen(true)
+                }}
                 placeholder={isPeticaoInicial ? 'Será atribuído após o protocolo' : '0000000-00.0000.0.00.0000'}
-                className={`font-mono ${isPeticaoInicial ? 'bg-muted/50 cursor-not-allowed text-muted-foreground' : ''}`}
+                maxLength={25}
+                className={`font-mono ${
+                  isPeticaoInicial
+                    ? 'bg-muted/50 cursor-not-allowed text-muted-foreground'
+                    : formData.processoNumero && !isProcessoNumeroValido(formData.processoNumero)
+                    ? 'border-destructive focus-visible:ring-destructive'
+                    : ''
+                }`}
                 disabled={isPeticaoInicial}
                 autoComplete="off"
                 name="processo-numero"
+                inputMode="numeric"
               />
+              {dropdownOpen && !isPeticaoInicial && filteredProcessos.length > 0 && (
+                <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-background border border-border rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                  {filteredProcessos.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className="w-full text-left px-3 py-2.5 hover:bg-muted/60 flex items-center gap-3 transition-colors border-b border-border/40 last:border-0"
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        const detected = tribunalFromProcesso(p.numero)
+                        onChange({
+                          processoNumero: p.numero,
+                          ...(detected && !formData.tribunalId ? { tribunalId: detected as TribunalId } : {}),
+                        })
+                        if (detected && !formData.tribunalId) setTribunalAutoDetectado(true)
+                        setDropdownOpen(false)
+                      }}
+                    >
+                      <span className="font-mono text-sm font-medium shrink-0 text-foreground">{p.numero}</span>
+                      {p.partesResumo && (
+                        <span className="text-xs text-muted-foreground truncate">— {p.partesResumo}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-            {isPeticaoInicial && (
+            {isPeticaoInicial ? (
               <p className="mt-1.5 text-xs text-muted-foreground flex items-center gap-1">
                 <span className="material-symbols-outlined text-xs">info</span>
                 Petição Inicial cria um processo novo — o número é gerado pelo tribunal
               </p>
-            )}
+            ) : formData.processoNumero && !isProcessoNumeroValido(formData.processoNumero) ? (
+              <p className="mt-1.5 text-xs text-destructive flex items-center gap-1">
+                <span className="material-symbols-outlined text-xs">error</span>
+                Formato inválido — use NNNNNNN-DD.AAAA.J.TT.OOOO (ex: 1014980-12.2025.4.01.4100)
+              </p>
+            ) : formData.processoNumero && isProcessoNumeroValido(formData.processoNumero) ? (
+              <p className="mt-1.5 text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                <span className="material-symbols-outlined text-xs">check_circle</span>
+                Número no formato CNJ correto
+              </p>
+            ) : null}
           </div>
         </div>
+
+        {/* Tipo de Documento PJe + Descrição PJe */}
+        {formData.tribunalId && (tiposPje.length > 0 || tiposTPU.length > 0) && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <Label className="text-sm font-medium mb-2 block">
+                Tipo de Documento{' '}
+                <span className="text-xs font-normal text-muted-foreground">(PJe)</span>
+                <span className="ml-1 text-destructive">*</span>
+              </Label>
+              <Select
+                value={formData.tipoPeticaoPje || undefined}
+                onValueChange={(v) => onChange({ tipoPeticaoPje: v })}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue
+                    placeholder={
+                      isLoadingTipos || isLoadingTPU ? 'Carregando...' : 'Selecionar tipo PJe...'
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent className="max-h-80 overflow-y-auto">
+                  {tiposPje.length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel className="text-xs text-muted-foreground px-2 py-1.5">
+                        🟢 Tipos PJe — capturados do tribunal
+                      </SelectLabel>
+                      {tiposPje.map((tipo) => (
+                        <SelectItem key={`pje-${tipo}`} value={tipo}>
+                          {tipo}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  )}
+                  {tiposTPU.length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel className="text-xs text-muted-foreground px-2 py-1.5">
+                        🟦 Tipos TPU — Tabela Processual Unificada (CNJ)
+                      </SelectLabel>
+                      {tiposTPU.map((tipo) => (
+                        <SelectItem
+                          key={`tpu-${tipo.cod_item}`}
+                          value={tipo.nome}
+                          title={tipo.descricao || undefined}
+                        >
+                          <span className="mr-1.5 text-xs text-muted-foreground font-mono">
+                            {tipo.cod_item}
+                          </span>
+                          {tipo.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  )}
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                <span className="text-green-600">●</span> PJe: label exato do formulário ·{' '}
+                <span className="text-blue-600">●</span> TPU: tabela oficial CNJ (com código)
+              </p>
+            </div>
+            <div>
+              <Label className="text-sm font-medium mb-2 block">
+                Descrição{' '}
+                <span className="text-xs font-normal text-muted-foreground">(campo PJe — opcional)</span>
+              </Label>
+              <Input
+                value={formData.descricaoPje ?? ''}
+                onChange={(e) => onChange({ descricaoPje: e.target.value || undefined })}
+                placeholder="Descrição livre do documento..."
+                className="h-9 text-sm"
+                maxLength={500}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Comarca / Localidade */}
         <div>

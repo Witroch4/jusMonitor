@@ -29,11 +29,12 @@ import { Search, Plus, ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface PeticaoListProps {
   onNovaPeticao: () => void
+  onEditRascunho?: (id: string) => void
 }
 
 const PAGE_SIZE = 8
 
-export function PeticaoList({ onNovaPeticao }: PeticaoListProps) {
+export function PeticaoList({ onNovaPeticao, onEditRascunho }: PeticaoListProps) {
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<PeticaoStatus | 'all'>('all')
@@ -156,7 +157,13 @@ export function PeticaoList({ onNovaPeticao }: PeticaoListProps) {
                 <TableRow
                   key={item.id}
                   className="cursor-pointer hover:bg-muted/20 transition-colors"
-                  onClick={() => router.push(`/peticoes/${item.id}`)}
+                  onClick={() => {
+                    if (item.status === 'rascunho' && onEditRascunho) {
+                      onEditRascunho(item.id)
+                    } else {
+                      router.push(`/peticoes/${item.id}`)
+                    }
+                  }}
                 >
                   <TableCell className="font-mono text-xs text-primary font-medium">
                     {item.numeroProtocolo ?? '—'}

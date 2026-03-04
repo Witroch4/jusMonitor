@@ -27,11 +27,21 @@ class CertificadoDigitalRepository(BaseRepository[CertificadoDigital]):
         return list(result.scalars().all())
 
     async def get_by_serial(self, serial_number: str) -> CertificadoDigital | None:
-        """Find a certificate by serial number within the tenant."""
+        """Find an active (non-revoked) certificate by serial number within the tenant."""
         query = (
             select(CertificadoDigital)
             .where(CertificadoDigital.serial_number == serial_number)
             .where(CertificadoDigital.revogado == False)  # noqa: E712
+        )
+        query = self._apply_tenant_filter(query)
+        result = await self.session.execute(query)
+        return result.scalar_one_or_none()
+
+    async def get_by_serial_any(self, serial_number: str) -> CertificadoDigital | None:
+        """Find any certificate (including revoked) by serial number within the tenant."""
+        query = (
+            select(CertificadoDigital)
+            .where(CertificadoDigital.serial_number == serial_number)
         )
         query = self._apply_tenant_filter(query)
         result = await self.session.execute(query)

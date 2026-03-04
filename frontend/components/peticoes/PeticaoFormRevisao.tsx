@@ -3,12 +3,13 @@
 import { cn } from '@/lib/utils'
 import { TRIBUNAIS } from '@/lib/data/tribunais'
 import { TIPO_PETICAO_LABELS } from '@/types/peticoes'
-import type { NovaPeticaoFormData, UploadedFile, AnaliseIA } from '@/types/peticoes'
+import type { NovaPeticaoFormData, UploadedFile, AnaliseIA, PeticaoDocumento } from '@/types/peticoes'
 
 interface Props {
   formData: NovaPeticaoFormData
   files: UploadedFile[]
   analise: AnaliseIA | null
+  existingDocuments?: PeticaoDocumento[]
 }
 
 interface CheckItem {
@@ -16,10 +17,13 @@ interface CheckItem {
   ok: boolean
 }
 
-export function PeticaoFormRevisao({ formData, files, analise }: Props) {
+export function PeticaoFormRevisao({ formData, files, analise, existingDocuments = [] }: Props) {
   const tribunal = TRIBUNAIS.find((t) => t.id === formData.tribunalId)
-  const hasPrincipal = files.some((f) => f.tipoDocumento === 'peticao_principal' && f.status === 'uploaded')
+  const hasPrincipal =
+    files.some((f) => f.tipoDocumento === 'peticao_principal' && f.status === 'uploaded') ||
+    existingDocuments.some((d) => d.tipoDocumento === 'peticao_principal')
   const validFiles = files.filter((f) => f.status === 'uploaded')
+  const totalDocCount = validFiles.length + existingDocuments.length
 
   const isPeticaoInicial = formData.tipoPeticao === 'peticao_inicial'
   const processoOk = isPeticaoInicial || formData.processoNumero.length > 10
@@ -64,7 +68,7 @@ export function PeticaoFormRevisao({ formData, files, analise }: Props) {
         </div>
         <div className="space-y-2">
           <div className="text-xs text-muted-foreground">Documentos</div>
-          <div className="text-sm font-medium">{validFiles.length} arquivo(s)</div>
+          <div className="text-sm font-medium">{totalDocCount} arquivo(s)</div>
         </div>
       </div>
 
@@ -105,9 +109,12 @@ export function PeticaoFormRevisao({ formData, files, analise }: Props) {
 export function useRevisaoValidation(
   formData: NovaPeticaoFormData,
   files: UploadedFile[],
-  analise?: AnaliseIA | null
+  analise?: AnaliseIA | null,
+  existingDocuments?: PeticaoDocumento[]
 ): boolean {
-  const hasPrincipal = files.some((f) => f.tipoDocumento === 'peticao_principal' && f.status === 'uploaded')
+  const hasPrincipal =
+    files.some((f) => f.tipoDocumento === 'peticao_principal' && f.status === 'uploaded') ||
+    (existingDocuments ?? []).some((d) => d.tipoDocumento === 'peticao_principal')
   const isPeticaoInicial = formData.tipoPeticao === 'peticao_inicial'
   const processoOk = isPeticaoInicial || formData.processoNumero.length > 10
   // Matéria obrigatória apenas para petição inicial; intercorrentes não precisam

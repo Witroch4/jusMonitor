@@ -308,10 +308,29 @@ async def protocolar_peticao_task(peticao_id: str, tenant_id: str) -> dict:
 
             # Extrair segredo TOTP se configurado no certificado
             totp_secret_raw = None
+            totp_algorithm = None
+            totp_digits = None
+            totp_period = None
             if cert.totp_secret_encrypted:
                 try:
-                    totp_secret_raw = crypto.decrypt(cert.totp_secret_encrypted).decode("utf-8")
-                    logger.info("[WORKER] TOTP secret extraído do certificado (%d chars)", len(totp_secret_raw))
+                    decrypted = crypto.decrypt(cert.totp_secret_encrypted).decode("utf-8")
+                    # New format: JSON with secret + algorithm + digits + period
+                    # Old format: plain base32 secret string
+                    import json as _json
+                    try:
+                        totp_cfg = _json.loads(decrypted)
+                        totp_secret_raw = totp_cfg["secret"]
+                        totp_algorithm = totp_cfg.get("algorithm", "SHA1")
+                        totp_digits = totp_cfg.get("digits", 6)
+                        totp_period = totp_cfg.get("period", 30)
+                        logger.info(
+                            "[WORKER] TOTP config: algo=%s digits=%d period=%ds secret_len=%d",
+                            totp_algorithm, totp_digits, totp_period, len(totp_secret_raw),
+                        )
+                    except (_json.JSONDecodeError, KeyError):
+                        # Legacy: plain secret string
+                        totp_secret_raw = decrypted
+                        logger.info("[WORKER] TOTP secret (legacy) extraído (%d chars)", len(totp_secret_raw))
                 except Exception as e:
                     logger.warning("[WORKER] Falha ao descriptografar totp_secret: %s", e)
 
@@ -319,10 +338,23 @@ async def protocolar_peticao_task(peticao_id: str, tenant_id: str) -> dict:
             principal_doc = documentos_pdf_raw[0]
             pdf_b64 = base64.b64encode(principal_doc["conteudo"]).decode("ascii")
 
+            # tipo_documento_pje é o label exato do select PJe (ex: 'Petição intercorrente')
+            # Se não estiver preenchido, usa o enum interno como fallback
+            tipo_doc_scraper = (
+                pet.tipo_documento_pje
+                or principal_doc["tipo_documento"]
+            )
+            # descricao_pje é a descrição livre do formulário PJe
+            descricao_scraper = (
+                pet.descricao_pje
+                or pet.assunto
+                or principal_doc["nome"]
+            )
+
             logger.info(
                 "[WORKER] Chamando scraper: pfx=%d bytes, pdf=%d bytes, tipo=%s, desc=%s",
                 len(pfx_raw), len(principal_doc["conteudo"]),
-                principal_doc["tipo_documento"], pet.assunto[:50] if pet.assunto else "",
+                tipo_doc_scraper, descricao_scraper[:50],
             )
 
             from app.core.services.scraper_client import protocolar_via_scraper
@@ -333,9 +365,12 @@ async def protocolar_peticao_task(peticao_id: str, tenant_id: str) -> dict:
                 pfx_base64=pfx_b64,
                 pfx_password=pfx_password_raw,
                 pdf_base64=pdf_b64,
-                tipo_documento=principal_doc["tipo_documento"],
-                descricao=pet.assunto or principal_doc["nome"],
+                tipo_documento=tipo_doc_scraper,
+                descricao=descricao_scraper,
                 totp_secret=totp_secret_raw,
+                totp_algorithm=totp_algorithm,
+                totp_digits=totp_digits,
+                totp_period=totp_period,
             )
 
             logger.info(

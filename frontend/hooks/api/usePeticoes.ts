@@ -105,6 +105,8 @@ export function useCreatePeticao() {
       if (formData.tipoPeticao) payload.tipoPeticao = formData.tipoPeticao
       if (formData.descricao) payload.descricao = formData.descricao
       if (formData.certificadoId) payload.certificadoId = formData.certificadoId
+      if (formData.tipoPeticaoPje) payload.tipoPeticaoPje = formData.tipoPeticaoPje
+      if (formData.descricaoPje) payload.descricaoPje = formData.descricaoPje
       const db = sanitizeDadosBasicos(formData.dadosBasicos)
       if (db) payload.dadosBasicos = db
 
@@ -132,6 +134,8 @@ export function useUpdatePeticao() {
       tribunalId?: string
       processoNumero?: string
       tipoPeticao?: string
+      tipoPeticaoPje?: string
+      descricaoPje?: string
     }): Promise<Peticao> => {
       const { data } = await apiClient.patch<Peticao>(`/peticoes/${id}`, body)
       return data
@@ -249,5 +253,43 @@ export function useAnaliseIA() {
     onSuccess: (_, peticaoId) => {
       queryClient.invalidateQueries({ queryKey: ['peticoes', peticaoId] })
     },
+  })
+}
+
+/** Retorna lista de tipos de documento do PJe para o tribunal informado (capturada via RPA) */
+export function useTiposDocumentoPje(tribunalId: string | undefined) {
+  return useQuery({
+    queryKey: ['tipos-documento-pje', tribunalId],
+    queryFn: async (): Promise<string[]> => {
+      const { data } = await apiClient.get<{ tipos: string[] }>('/peticoes/tipos-documento', {
+        params: { tribunal_id: tribunalId },
+      })
+      return data.tipos
+    },
+    enabled: !!tribunalId,
+    staleTime: 1000 * 60 * 60, // 1h — lista não muda frequentemente
+  })
+}
+
+export interface TipoDocumentoTPU {
+  cod_item: number
+  nome: string
+  descricao: string
+}
+
+/** Retorna tipos de documento da Tabela Processual Unificada (CNJ oficial) */
+export function useTiposDocumentoTPU(tribunalId: string | undefined) {
+  return useQuery({
+    queryKey: ['tipos-documento-tpu', tribunalId],
+    queryFn: async (): Promise<TipoDocumentoTPU[]> => {
+      const { data } = await apiClient.get<{ tipos: TipoDocumentoTPU[] }>(
+        '/peticoes/tipos-documento-tpu',
+        { params: { tribunal_id: tribunalId } },
+      )
+      return data.tipos
+    },
+    enabled: !!tribunalId,
+    staleTime: 1000 * 60 * 60 * 24, // 24h — TPU muda raramente
+    retry: 1,
   })
 }

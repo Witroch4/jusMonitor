@@ -12,8 +12,50 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type { Polo, Pessoa, Advogado } from '@/types/peticoes'
-import { Plus, Trash2, User, Building2, UserCheck, Pencil, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
+import { VINCULACOES_BY_POLO } from '@/types/peticoes'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Plus, Trash2, User, Building2, UserCheck, Pencil, Loader2, CheckCircle2, AlertCircle, Zap } from 'lucide-react'
 import { useProfile } from '@/hooks/api/useProfile'
+
+const TEMPLATES_POLO_PASSIVO = [
+  {
+    id: 'ms-oab',
+    label: 'Mandado de Segurança — OAB (Exame da Ordem)',
+    description: 'OAB Conselho Federal, Presidente da OAB, FGV e Presidente da FGV',
+    partes: [
+      {
+        nome: 'ORDEM DOS ADVOGADOS DO BRASIL CONSELHO FEDERAL',
+        tipoPessoa: 'juridica' as const,
+        cnpj: '33.205.451/0001-14',
+        tipoVinculacao: 'TERCEIRO INTERESSADO',
+        orgaoPublico: false,
+      },
+      {
+        nome: 'PRESIDENTE DO CONSELHO FEDERAL DA ORDEM DOS ADVOGADOS DO BRASIL',
+        tipoPessoa: 'entidade' as const,
+        tipoVinculacao: 'IMPETRADO',
+      },
+      {
+        nome: 'FUNDACAO GETULIO VARGAS',
+        tipoPessoa: 'juridica' as const,
+        cnpj: '33.641.663/0001-44',
+        tipoVinculacao: 'TERCEIRO INTERESSADO',
+        orgaoPublico: false,
+      },
+      {
+        nome: 'PRESIDENTE DA FUNDAÇÃO GETÚLIO VARGAS',
+        tipoPessoa: 'entidade' as const,
+        tipoVinculacao: 'IMPETRADO',
+      },
+    ] as Pessoa[],
+  },
+]
 
 interface CnpjState {
   loading: boolean
@@ -62,6 +104,8 @@ function formatCnpj(cnpj: string): string {
 
 export function PeticaoFormPartes({ polos, onChange }: Props) {
   const [expanded, setExpanded] = useState(true)
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
+  const [templatePoloIdx, setTemplatePoloIdx] = useState<number | null>(null)
   const { data: profile } = useProfile()
 
   // CNPJ lookup state per parte: key = `${poloIdx}-${parteIdx}`
@@ -139,19 +183,28 @@ export function PeticaoFormPartes({ polos, onChange }: Props) {
       try {
         const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjDigits}`)
         if (!res.ok) {
-          const msg = res.status === 404 ? 'CNPJ não encontrado' : 'Erro ao consultar CNPJ'
+          let msg = 'Erro ao consultar CNPJ'
+          try {
+            const errData = await res.json()
+            if (errData?.message) msg = errData.message
+            else if (res.status === 404) msg = 'CNPJ não encontrado'
+          } catch {
+            if (res.status === 404) msg = 'CNPJ não encontrado'
+          }
           setCnpjState(key, { loading: false, error: msg, found: false })
           return
         }
         const data = await res.json()
         const nome = data.razao_social || data.nome_fantasia || ''
+        const nomeFantasia = data.nome_fantasia && data.nome_fantasia !== nome ? data.nome_fantasia : undefined
         updateParte(poloIdx, parteIdx, {
           nome,
+          nomeFantasia,
           cnpj: formatCnpj(cnpjDigits),
         })
         setCnpjState(key, { loading: false, error: null, found: true })
       } catch {
-        setCnpjState(key, { loading: false, error: 'Falha na consulta do CNPJ', found: false })
+        setCnpjState(key, { loading: false, error: 'Falha na consulta do CNPJ. Verifique sua conexão.', found: false })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -169,6 +222,18 @@ export function PeticaoFormPartes({ polos, onChange }: Props) {
     if (digits.length === 14) {
       timerRef.current[key] = setTimeout(() => lookupCnpj(poloIdx, parteIdx, digits), 400)
     }
+  }
+
+  const openTemplateDialog = (poloIdx: number) => {
+    setTemplatePoloIdx(poloIdx)
+    setTemplateDialogOpen(true)
+  }
+
+  const applyTemplate = (template: typeof TEMPLATES_POLO_PASSIVO[number]) => {
+    if (templatePoloIdx === null) return
+    updatePolo(templatePoloIdx, { partes: [...template.partes] })
+    setTemplateDialogOpen(false)
+    setTemplatePoloIdx(null)
   }
 
   return (
@@ -231,6 +296,24 @@ export function PeticaoFormPartes({ polos, onChange }: Props) {
                       )}
                     </div>
 
+                    {/* Tipo de Vinculação */}
+                    <div>
+                      <Label className="text-xs mb-1 block">Tipo da Parte (Vinculação)</Label>
+                      <Select
+                        value={parte.tipoVinculacao || ''}
+                        onValueChange={(v) => updateParte(poloIdx, parteIdx, { tipoVinculacao: v })}
+                      >
+                        <SelectTrigger className="h-9 text-sm">
+                          <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(VINCULACOES_BY_POLO[polo.polo] || []).map((v) => (
+                            <SelectItem key={v} value={v}>{v}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       <div className="md:col-span-2">
                         <Label className="text-xs mb-1 block">Nome</Label>
@@ -242,64 +325,111 @@ export function PeticaoFormPartes({ polos, onChange }: Props) {
                         />
                       </div>
                       <div>
-                        <Label className="text-xs mb-1 block">Tipo</Label>
+                        <Label className="text-xs mb-1 block">Tipo de Pessoa</Label>
                         <Select
                           value={parte.tipoPessoa}
-                          onValueChange={(v) => updateParte(poloIdx, parteIdx, { tipoPessoa: v as Pessoa['tipoPessoa'] })}
+                          onValueChange={(v) => updateParte(poloIdx, parteIdx, { tipoPessoa: v as Pessoa['tipoPessoa'], orgaoPublico: false })}
                         >
                           <SelectTrigger className="h-9 text-sm">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="fisica">Pessoa Fisica</SelectItem>
-                            <SelectItem value="juridica">Pessoa Juridica</SelectItem>
-                            <SelectItem value="autoridade">Autoridade</SelectItem>
+                            <SelectItem value="fisica">Pessoa Física</SelectItem>
+                            <SelectItem value="juridica">Pessoa Jurídica</SelectItem>
+                            <SelectItem value="entidade">Ente ou Entidade</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {parte.tipoPessoa === 'juridica' ? (
-                        <div>
-                          <Label className="text-xs mb-1 block">CNPJ</Label>
-                          <div className="relative">
-                            <Input
-                              value={parte.cnpj || ''}
-                              onChange={(e) => handleCnpjChange(poloIdx, parteIdx, e.target.value)}
-                              placeholder="00.000.000/0001-00"
-                              className={`h-9 text-sm font-mono pr-8 ${
-                                cnpjState?.error ? 'border-destructive focus-visible:ring-destructive/30' : ''
-                              }`}
-                              maxLength={18}
+                    {/* Órgão Público (jurídica ou entidade) */}
+                    {(parte.tipoPessoa === 'juridica' || parte.tipoPessoa === 'entidade') && (
+                      <div className="flex items-center gap-4">
+                        <span className="text-xs text-muted-foreground">Órgão Público?</span>
+                        <div className="flex items-center gap-4">
+                          <label className="flex items-center gap-1.5 cursor-pointer text-xs">
+                            <input
+                              type="radio"
+                              name={`orgaoPublico-${poloIdx}-${parteIdx}`}
+                              checked={parte.orgaoPublico === true}
+                              onChange={() => updateParte(poloIdx, parteIdx, { orgaoPublico: true })}
+                              className="accent-primary"
                             />
-                            {cnpjState?.loading && (
-                              <Loader2 className="absolute right-2.5 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />
-                            )}
-                            {cnpjState?.found && !cnpjState.loading && (
-                              <CheckCircle2 className="absolute right-2.5 top-2.5 h-4 w-4 text-emerald-500" />
-                            )}
-                            {cnpjState?.error && !cnpjState.loading && (
-                              <AlertCircle className="absolute right-2.5 top-2.5 h-4 w-4 text-destructive" />
-                            )}
-                          </div>
-                          {cnpjState?.error && (
-                            <p className="text-[11px] text-destructive mt-1">{cnpjState.error}</p>
+                            Sim
+                          </label>
+                          <label className="flex items-center gap-1.5 cursor-pointer text-xs">
+                            <input
+                              type="radio"
+                              name={`orgaoPublico-${poloIdx}-${parteIdx}`}
+                              checked={!parte.orgaoPublico}
+                              onChange={() => updateParte(poloIdx, parteIdx, { orgaoPublico: false })}
+                              className="accent-primary"
+                            />
+                            Não
+                          </label>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {parte.tipoPessoa === 'juridica' || parte.tipoPessoa === 'entidade' ? (
+                        <div className="md:col-span-2 space-y-2">
+                          <Label className="text-xs mb-1 block">CNPJ</Label>
+                          {!parte.semCnpj && (
+                            <div className="relative">
+                              <Input
+                                value={parte.cnpj || ''}
+                                onChange={(e) => handleCnpjChange(poloIdx, parteIdx, e.target.value)}
+                                placeholder="00.000.000/0001-00"
+                                className={`h-9 text-sm font-mono pr-8 ${
+                                  cnpjState?.error ? 'border-destructive focus-visible:ring-destructive/30' : ''
+                                }`}
+                                maxLength={18}
+                              />
+                              {cnpjState?.loading && (
+                                <Loader2 className="absolute right-2.5 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />
+                              )}
+                              {cnpjState?.found && !cnpjState.loading && (
+                                <CheckCircle2 className="absolute right-2.5 top-2.5 h-4 w-4 text-emerald-500" />
+                              )}
+                              {cnpjState?.error && !cnpjState.loading && (
+                                <AlertCircle className="absolute right-2.5 top-2.5 h-4 w-4 text-destructive" />
+                              )}
+                            </div>
                           )}
-                          {cnpjState?.found && (
-                            <p className="text-[11px] text-emerald-600 mt-1">Empresa encontrada — dados preenchidos automaticamente</p>
+                          {cnpjState?.error && !parte.semCnpj && (
+                            <p className="text-[11px] text-destructive">{cnpjState.error}</p>
                           )}
+                          {cnpjState?.found && !parte.semCnpj && (
+                            <p className="text-[11px] text-emerald-600">Empresa encontrada — dados preenchidos automaticamente</p>
+                          )}
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <Checkbox
+                              checked={!!parte.semCnpj}
+                              onCheckedChange={(checked) => updateParte(poloIdx, parteIdx, { semCnpj: !!checked, cnpj: checked ? '' : parte.cnpj })}
+                            />
+                            <span className="text-xs text-muted-foreground">Não possui este documento</span>
+                          </label>
                         </div>
                       ) : (
                         <>
                           <div>
                             <Label className="text-xs mb-1 block">CPF</Label>
-                            <Input
-                              value={parte.cpf || ''}
-                              onChange={(e) => updateParte(poloIdx, parteIdx, { cpf: e.target.value })}
-                              placeholder="000.000.000-00"
-                              className="h-9 text-sm font-mono"
-                            />
+                            {!parte.semCpf && (
+                              <Input
+                                value={parte.cpf || ''}
+                                onChange={(e) => updateParte(poloIdx, parteIdx, { cpf: e.target.value })}
+                                placeholder="000.000.000-00"
+                                className="h-9 text-sm font-mono"
+                              />
+                            )}
+                            <label className="flex items-center gap-2 cursor-pointer mt-1.5">
+                              <Checkbox
+                                checked={!!parte.semCpf}
+                                onCheckedChange={(checked) => updateParte(poloIdx, parteIdx, { semCpf: !!checked, cpf: checked ? '' : parte.cpf })}
+                              />
+                              <span className="text-xs text-muted-foreground">Não possui este documento</span>
+                            </label>
                           </div>
                           <div>
                             <Label className="text-xs mb-1 block">Sexo</Label>
@@ -318,21 +448,47 @@ export function PeticaoFormPartes({ polos, onChange }: Props) {
                           </div>
                         </>
                       )}
+                      {/* Nome Fantasia — só para jurídica */}
+                      {parte.tipoPessoa === 'juridica' && (
+                        <div className="md:col-span-2">
+                          <Label className="text-xs mb-1 block">Nome Fantasia</Label>
+                          <Input
+                            value={parte.nomeFantasia || ''}
+                            onChange={(e) => updateParte(poloIdx, parteIdx, { nomeFantasia: e.target.value })}
+                            placeholder="Nome fantasia"
+                            className="h-9 text-sm"
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 )
               })}
 
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => addParte(poloIdx)}
-                className="ml-4 h-8 text-xs"
-              >
-                <Plus className="h-3.5 w-3.5 mr-1" />
-                Adicionar Parte
-              </Button>
+              <div className="flex items-center gap-2 ml-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => addParte(poloIdx)}
+                  className="h-8 text-xs"
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  Adicionar Parte
+                </Button>
+                {polo.polo === 'PA' && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openTemplateDialog(poloIdx)}
+                    className="h-8 text-xs border-amber-500/40 text-amber-600 hover:bg-amber-500/10 dark:text-amber-400"
+                  >
+                    <Zap className="h-3.5 w-3.5 mr-1" />
+                    Adição Rápida
+                  </Button>
+                )}
+              </div>
 
               {/* Advogados */}
               {polo.advogados.length > 0 && (
@@ -474,6 +630,43 @@ export function PeticaoFormPartes({ polos, onChange }: Props) {
           ))}
         </div>
       )}
+
+      <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Adição Rápida — Polo Passivo</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 mt-2">
+            {TEMPLATES_POLO_PASSIVO.map((tpl) => (
+              <button
+                key={tpl.id}
+                type="button"
+                onClick={() => applyTemplate(tpl)}
+                className="w-full text-left p-4 rounded-xl border border-border hover:border-primary/50 hover:bg-primary/5 transition-colors space-y-2"
+              >
+                <div className="flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-amber-500 shrink-0" />
+                  <span className="font-medium text-sm">{tpl.label}</span>
+                </div>
+                <p className="text-xs text-muted-foreground">{tpl.description}</p>
+                <div className="mt-2 space-y-1">
+                  {tpl.partes.map((p, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground">
+                      {p.tipoPessoa === 'juridica' ? (
+                        <Building2 className="h-3 w-3 shrink-0" />
+                      ) : (
+                        <User className="h-3 w-3 shrink-0" />
+                      )}
+                      <span>{p.nome}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted">{p.tipoVinculacao}</span>
+                    </div>
+                  ))}
+                </div>
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

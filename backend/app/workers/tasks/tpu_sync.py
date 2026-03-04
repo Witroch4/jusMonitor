@@ -20,7 +20,7 @@ from sqlalchemy.dialects.postgresql import insert
 
 from app.core.services.tpu.cnj_client import CnjTpuClient
 from app.db.engine import AsyncSessionLocal
-from app.db.models.tpu import TpuAssunto, TpuClasse
+from app.db.models.tpu import TpuAssunto, TpuClasse, TpuDocumento
 from app.workers.broker import broker
 from app.workers.tasks.base import BaseTask
 
@@ -159,13 +159,56 @@ async def _upsert_assuntos(session, assuntos_data: list[dict]) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Upsert documentos
+# ---------------------------------------------------------------------------
+
+
+async def _upsert_documentos(session, documentos_data: list[dict]) -> int:
+    if not documentos_data:
+        return 0
+
+    logger.info("tpu_sync_upsert_documentos_start", total=len(documentos_data))
+    BATCH = 1000
+
+    for i in range(0, len(documentos_data), BATCH):
+        batch = documentos_data[i : i + BATCH]
+        values = [
+            {
+                "codigo": item.get("cod_item"),
+                "nome": (item.get("nome") or "").strip(),
+                "cod_item_pai": item.get("cod_item_pai"),
+                "glossario": (item.get("descricao_glossario") or item.get("descricao_documento") or "").strip() or None,
+            }
+            for item in batch
+            if item.get("cod_item") and (item.get("nome") or "").strip()
+        ]
+        if not values:
+            continue
+        stmt = insert(TpuDocumento).values(values)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["codigo"],
+            set_={
+                "nome": stmt.excluded.nome,
+                "cod_item_pai": stmt.excluded.cod_item_pai,
+                "glossario": stmt.excluded.glossario,
+                "updated_at": func.now(),
+            },
+        )
+        await session.execute(stmt)
+
+    await session.commit()
+    logger.info("tpu_sync_upsert_documentos_done", total=len(documentos_data))
+    return len(documentos_data)
+
+
+# ---------------------------------------------------------------------------
 # Task principal — registrada no scheduler e no broker
 # ---------------------------------------------------------------------------
 
 
 async def sync_tpu_from_cnj() -> dict:
     """
-    Baixa e persiste classes + assuntos do CNJ.
+    Baixa e persiste classes + assuntos + documentos do CNJ.
     Retorna um resumo com totais.
     """
     logger.info("tpu_sync_started")
@@ -178,11 +221,15 @@ async def sync_tpu_from_cnj() -> dict:
         logger.info("tpu_sync_downloading_assuntos")
         assuntos_data = await client.get_assuntos()
 
+        logger.info("tpu_sync_downloading_documentos")
+        documentos_data = await client.get_documentos()
+
         async with AsyncSessionLocal() as session:
             total_classes = await _upsert_classes(session, classes_data)
             total_assuntos = await _upsert_assuntos(session, assuntos_data)
+            total_documentos = await _upsert_documentos(session, documentos_data)
 
-        result = {"classes": total_classes, "assuntos": total_assuntos}
+        result = {"classes": total_classes, "assuntos": total_assuntos, "documentos": total_documentos}
         logger.info("tpu_sync_completed", **result)
         return result
 
@@ -221,15 +268,18 @@ async def ensure_tpu_populated() -> None:
             )
             count = count_result.scalar_one()
 
-        if count == 0:
+            docs_result = await session.execute(text("SELECT COUNT(*) FROM tpu_documentos"))
+            doc_count = docs_result.scalar_one()
+
+        if count == 0 or doc_count == 0:
             logger.info(
                 "tpu_sync_startup_trigger",
-                reason="tabela tpu_assuntos vazia — iniciando sync automático",
+                reason=f"tabelas vazias (assuntos={count}, documentos={doc_count}) — iniciando sync automático",
             )
             # Roda em background para não bloquear o startup
             asyncio.create_task(sync_tpu_from_cnj())
         else:
-            logger.info("tpu_sync_startup_skip", total_assuntos=count)
+            logger.info("tpu_sync_startup_skip", total_assuntos=count, total_documentos=doc_count)
 
     except Exception as exc:
         # Não quebra o startup se o sync falhar

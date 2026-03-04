@@ -1,0 +1,15 @@
+PARA EXECUTAR O ASSINADOR:
+
+Passo 1: 
+  Abra um terminal nesta pasta 'pjeoffice-pro'
+
+Passo 2:
+  Atribua permissão de execução ao script pjeoffice-pro.sh com o comando:
+  	
+  	chmod +x pjeoffice-pro.sh
+
+Passo 3:
+  Execute o programa com o comando:
+    
+    ./pjeoffice-pro.sh
+  

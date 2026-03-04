@@ -19,6 +19,7 @@ import {
   useUploadCertificado,
   useTestarCertificado,
   useRemoverCertificado,
+  useConfigurarTotpQr,
 } from '@/hooks/api/useCertificados'
 import type { CertificadoDigital } from '@/types/peticoes'
 
@@ -38,6 +39,7 @@ export function CertificadoModal({ open, onOpenChange }: Props) {
   const upload = useUploadCertificado()
   const testar = useTestarCertificado()
   const remover = useRemoverCertificado()
+  const totpQr = useConfigurarTotpQr()
 
   const [showForm, setShowForm] = useState(false)
   const [nomeAmigavel, setNomeAmigavel] = useState('')
@@ -45,7 +47,10 @@ export function CertificadoModal({ open, onOpenChange }: Props) {
   const [arquivo, setArquivo] = useState<File | null>(null)
   const [dragOverCert, setDragOverCert] = useState(false)
   const certFileRef = useRef<HTMLInputElement>(null)
+  const qrFileRef = useRef<HTMLInputElement>(null)
   const [testResults, setTestResults] = useState<Record<string, { sucesso: boolean; mensagem: string }>>({})
+  const [qrUploadCertId, setQrUploadCertId] = useState<string | null>(null)
+  const [qrResult, setQrResult] = useState<Record<string, { sucesso: boolean; mensagem: string }>>({})
 
   const handleUpload = async () => {
     if (!arquivo || !nomeAmigavel || !senha) return
@@ -68,6 +73,18 @@ export function CertificadoModal({ open, onOpenChange }: Props) {
 
   const handleRemover = async (id: string) => {
     await remover.mutateAsync(id)
+  }
+
+  const handleQrUpload = async (certId: string, file: File) => {
+    try {
+      const result = await totpQr.mutateAsync({ certId, imagem: file })
+      setQrResult((prev) => ({ ...prev, [certId]: { sucesso: true, mensagem: `${result.mensagem} (${result.secret_masked})` } }))
+      setQrUploadCertId(null)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao processar QR Code'
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setQrResult((prev) => ({ ...prev, [certId]: { sucesso: false, mensagem: detail || msg } }))
+    }
   }
 
   return (
@@ -159,6 +176,87 @@ export function CertificadoModal({ open, onOpenChange }: Props) {
                   {testResults[cert.id].mensagem}
                 </div>
               )}
+
+              {/* TOTP 2FA section */}
+              <div className="mt-3 pt-3 border-t border-border/40">
+                <div className="flex items-center gap-2">
+                  {cert.totpConfigurado ? (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-emerald-500/15 text-emerald-700 border-emerald-200 dark:text-emerald-400">
+                      <span className="material-symbols-outlined text-xs mr-0.5">verified</span>
+                      2FA Ativo
+                    </Badge>
+                  ) : (
+                    <>
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-muted text-muted-foreground">
+                        2FA Pendente
+                      </Badge>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 text-[10px] gap-1"
+                        onClick={() => setQrUploadCertId(qrUploadCertId === cert.id ? null : cert.id)}
+                      >
+                        <span className="material-symbols-outlined text-xs">qr_code_scanner</span>
+                        Enviar QR TOTP
+                      </Button>
+                    </>
+                  )}
+                </div>
+
+                {qrUploadCertId === cert.id && (
+                  <div className="mt-2">
+                    <div
+                      onClick={() => qrFileRef.current?.click()}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault()
+                        const file = e.dataTransfer.files?.[0]
+                        if (file) handleQrUpload(cert.id, file)
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => e.key === 'Enter' && qrFileRef.current?.click()}
+                      aria-label="Selecionar imagem do QR Code TOTP"
+                      className="flex items-center gap-3 w-full rounded-lg border-2 border-dashed border-border hover:border-primary/50 hover:bg-muted/30 px-4 py-3 cursor-pointer transition-all"
+                    >
+                      <div className="w-8 h-8 rounded-md flex items-center justify-center shrink-0 bg-muted text-muted-foreground">
+                        <span className="material-symbols-outlined text-base">qr_code</span>
+                      </div>
+                      <div className="flex-1 min-w-0 text-left">
+                        <p className="text-sm font-medium text-foreground">
+                          {totpQr.isPending ? 'Processando...' : 'Selecionar screenshot do QR Code'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">PNG, JPG ou WebP com o QR do autenticador</p>
+                      </div>
+                      <input
+                        ref={qrFileRef}
+                        type="file"
+                        accept=".png,.jpg,.jpeg,.webp,.bmp"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) handleQrUpload(cert.id, file)
+                          e.target.value = ''
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {qrResult[cert.id] && (
+                  <div className={cn(
+                    'mt-2 flex items-center gap-2 p-2 rounded-lg border text-xs',
+                    qrResult[cert.id].sucesso
+                      ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-400'
+                      : 'bg-destructive/5 border-destructive/20 text-destructive'
+                  )}>
+                    <span className="material-symbols-outlined text-sm">
+                      {qrResult[cert.id].sucesso ? 'check_circle' : 'error'}
+                    </span>
+                    {qrResult[cert.id].mensagem}
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </div>

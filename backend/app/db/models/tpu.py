@@ -94,3 +94,42 @@ class TpuAssunto(Base, TimestampMixin):
     
     def __repr__(self) -> str:
         return f"<TpuAssunto(codigo={self.codigo}, nome={self.nome})>"
+
+
+class TpuDocumento(Base, TimestampMixin):
+    """
+    Tabela Processual Unificada (TPU) - Documentos Processuais.
+    Armazena os tipos de documento conforme tabela oficial do CNJ.
+    """
+
+    __tablename__ = "tpu_documentos"
+
+    codigo: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        index=True,
+        comment="Código do tipo de documento no CNJ (cod_item)",
+    )
+
+    nome: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        index=True,
+        comment="Nome do tipo de documento",
+    )
+
+    cod_item_pai: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        index=True,
+        comment="Código do item pai (categoria)",
+    )
+
+    glossario: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Descrição/glossário do tipo de documento",
+    )
+
+    def __repr__(self) -> str:
+        return f"<TpuDocumento(codigo={self.codigo}, nome={self.nome})>"

@@ -71,6 +71,8 @@ class PeticaoService:
             criado_por=criado_por,
             status=PeticaoStatus.RASCUNHO,
             dados_basicos_json=dados_basicos_json,
+            tipo_documento_pje=data.tipo_documento_pje,
+            descricao_pje=data.descricao_pje,
         )
         await self._record_evento(
             session, tenant_id, pet.id,

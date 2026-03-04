@@ -80,6 +80,13 @@ class Settings(BaseSettings):
     chatwit_webhook_secret: str = ""
     chatwit_rate_limit_per_minute: int = 100
 
+    # S3 / MinIO Storage
+    s3_endpoint: str = "objstoreapi.witdev.com.br"
+    s3_access_key: str = ""
+    s3_secret_key: str = ""
+    s3_bucket: str = "jusmonitoria"
+    s3_presign_expiry_seconds: int = 3600  # 1 hour
+
     # Certificate Encryption
     encrypt_key: str = ""  # Fernet key (32 bytes base64) for encrypting PFX blobs
 

@@ -122,6 +122,8 @@ export interface Peticao {
   tipoPeticao: TipoPeticao
   assunto: string
   descricao?: string
+  tipoPeticaoPje?: string
+  descricaoPje?: string
   status: PeticaoStatus
   documentos: PeticaoDocumento[]
   certificadoId?: string
@@ -166,6 +168,7 @@ export interface CertificadoDigital {
   criptografia: 'AES-128-CBC'
   ultimoTesteEm?: string
   ultimoTesteResultado?: 'sucesso' | 'falha'
+  totpConfigurado: boolean
   criadoEm: string
 }
 
@@ -178,12 +181,55 @@ export interface PeticaoEvento {
   criadoEm: string
 }
 
+// Tipo de vinculação por polo (espelho das opções PJe)
+export const VINCULACOES_BY_POLO: Record<string, string[]> = {
+  AT: [
+    'LITISCONSORTE',
+    'TERCEIRO INTERESSADO',
+    'ASSISTENTE',
+    'IMPETRANTE',
+    'AUTOR',
+    'REQUERENTE',
+    'EXEQUENTE',
+    'RECLAMANTE',
+    'EMBARGANTE',
+    'APELANTE',
+    'RECORRENTE',
+  ],
+  PA: [
+    'RÉU',
+    'IMPETRADO',
+    'REQUERIDO',
+    'EXECUTADO',
+    'RECLAMADO',
+    'EMBARGADO',
+    'APELADO',
+    'RECORRIDO',
+    'LITISCONSORTE',
+    'TERCEIRO INTERESSADO',
+    'ASSISTENTE',
+  ],
+  TC: [
+    'TERCEIRO INTERESSADO',
+    'LITISCONSORTE',
+    'ASSISTENTE',
+    'INTERVENIENTE',
+    'AMICUS CURIAE',
+    'FISCAL DA LEI',
+  ],
+}
+
 // MNI 2.2.2 structured types
 export interface Pessoa {
   nome: string
-  tipoPessoa: 'fisica' | 'juridica' | 'autoridade'
+  tipoPessoa: 'fisica' | 'juridica' | 'entidade'
+  tipoVinculacao?: string        // ex: IMPETRANTE, IMPETRADO, TERCEIRO INTERESSADO
+  orgaoPublico?: boolean         // órgão público? sim/não (jurídica/entidade)
   cpf?: string
+  semCpf?: boolean               // não possui CPF
   cnpj?: string
+  semCnpj?: boolean              // não possui CNPJ
+  nomeFantasia?: string          // nome fantasia (jurídica)
   sexo?: 'M' | 'F'
   dataNascimento?: string
 }
@@ -231,6 +277,7 @@ export interface DadosBasicos {
   prioridade?: string[]
   justicaGratuita?: boolean
   pedidoLiminar?: boolean
+  juizoDigital?: boolean
 }
 
 export interface NovaPeticaoFormData {
@@ -241,6 +288,10 @@ export interface NovaPeticaoFormData {
   descricao: string
   certificadoId: string
   dadosBasicos?: DadosBasicos
+  /** Label exato do select PJe (ex: 'Petição intercorrente') */
+  tipoPeticaoPje?: string
+  /** Descrição livre para o campo Descrição do formulário PJe */
+  descricaoPje?: string
 }
 
 export interface UploadedFile {

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -46,6 +47,7 @@ import {
   Paperclip,
   Download,
   Eye,
+  FileSignature,
 } from 'lucide-react'
 import {
   useConsultarProcessoMNI,
@@ -75,6 +77,25 @@ import {
 } from '@/hooks/api/useCasosOAB'
 import type { CasoOAB, CasoOABDetail } from '@/types/casos-oab'
 import { useSyncProgress } from '@/hooks/useSyncProgress'
+import { apiClient } from '@/lib/api-client'
+import { normalizeProcessoNumero } from '@/lib/utils/processo'
+
+/**
+ * Fetch a pre-signed MinIO URL via the backend (authenticated) and open it.
+ * Falls back to the raw URL in development if the presign request fails.
+ */
+async function downloadS3Document(rawUrl: string): Promise<void> {
+  try {
+    const { data } = await apiClient.get<{ presigned_url: string }>(
+      `/storage/presign?url=${encodeURIComponent(rawUrl)}&redirect=false`,
+    )
+    window.open(data.presigned_url, '_blank', 'noopener,noreferrer')
+  } catch (err) {
+    console.error('presign_error', err)
+    // Fallback: try direct URL (works only if bucket becomes public or credentials change)
+    window.open(rawUrl, '_blank', 'noopener,noreferrer')
+  }
+}
 
 const tribunaisMNI = TRIBUNAIS.filter((t) => t.suportaMNI && t.wsdlEndpoint)
 
@@ -109,8 +130,9 @@ function formatCPF(doc?: string | null): string {
 }
 
 function formatProcessoNumber(num?: string | null): string {
-  if (!num || num.length !== 20) return num || '-'
-  return `${num.slice(0, 7)}-${num.slice(7, 9)}.${num.slice(9, 13)}.${num.slice(13, 14)}.${num.slice(14, 16)}.${num.slice(16)}`
+  if (!num) return '-'
+  const normalized = normalizeProcessoNumero(num)
+  return normalized || num
 }
 
 function Section({
@@ -220,21 +242,38 @@ function DatajudDetalhe({
   processoMonitorado?: ProcessoMonitorado
   onVoltar: () => void
 }) {
+  const router = useRouter()
   const [showRaw, setShowRaw] = useState(false)
   const proc = resultado.processo
   const ultimoConhecido = processoMonitorado?.movimentacoesConhecidas ?? 0
   const totalMovimentos = proc?.movimentos?.length ?? 0
   const novosCount = ultimoConhecido > 0 ? Math.max(0, totalMovimentos - ultimoConhecido) : 0
 
+  const numeroParaPeticionar = normalizeProcessoNumero(
+    processoMonitorado?.numero || proc?.numeroProcessoFormatado || ''
+  ) || undefined
+
   return (
     <div className="space-y-4">
-      <button
-        onClick={onVoltar}
-        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-2"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Voltar à lista
-      </button>
+      <div className="flex items-center justify-between mb-2">
+        <button
+          onClick={onVoltar}
+          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Voltar à lista
+        </button>
+        {numeroParaPeticionar && (
+          <Button
+            size="sm"
+            onClick={() => router.push(`/peticoes?processo=${encodeURIComponent(numeroParaPeticionar)}`)}
+            className="gap-1.5"
+          >
+            <FileSignature className="h-4 w-4" />
+            Peticionar
+          </Button>
+        )}
+      </div>
 
       <div className={`flex items-center gap-3 rounded-xl px-5 py-4 ${resultado.sucesso ? 'bg-green-50 border border-green-200 text-green-800'
         : 'bg-red-50 border border-red-200 text-red-800'}`}>
@@ -669,6 +708,7 @@ function CasoOABDetalhe({
   caso: CasoOABDetail
   onVoltar: () => void
 }) {
+  const router = useRouter()
   const partes = caso.partesJson || []
   const movimentacoes = caso.movimentacoesJson || []
   const documentos = caso.documentosJson || []
@@ -683,13 +723,23 @@ function CasoOABDetalhe({
 
   return (
     <div className="space-y-4">
-      <button
-        onClick={onVoltar}
-        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-2"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Voltar à lista
-      </button>
+      <div className="flex items-center justify-between mb-2">
+        <button
+          onClick={onVoltar}
+          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Voltar à lista
+        </button>
+        <Button
+          size="sm"
+          onClick={() => router.push(`/peticoes?processo=${encodeURIComponent(normalizeProcessoNumero(caso.numero))}`)}
+          className="gap-1.5"
+        >
+          <FileSignature className="h-4 w-4" />
+          Peticionar
+        </Button>
+      </div>
 
       <div className="flex items-center gap-3 rounded-xl px-5 py-4 bg-green-50 border border-green-200 text-green-800">
         <CheckCircle2 className="h-5 w-5 shrink-0" />
@@ -699,14 +749,14 @@ function CasoOABDetalhe({
             Última sincronização: {caso.ultimaSincronizacao ? formatDate(caso.ultimaSincronizacao) : 'Nunca'}
           </p>
         </div>
-        <Badge variant="outline" className="ml-auto font-mono text-xs">{caso.numero}</Badge>
+        <Badge variant="outline" className="ml-auto font-mono text-xs">{formatProcessoNumber(caso.numero)}</Badge>
       </div>
 
       <Section title="Dados Básicos" icon={FileText}>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
             <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Número</span>
-            <p className="font-mono text-sm font-medium mt-0.5">{caso.numero}</p>
+            <p className="font-mono text-sm font-medium mt-0.5">{formatProcessoNumber(caso.numero)}</p>
           </div>
           <div>
             <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Classe</span>
@@ -812,15 +862,14 @@ function CasoOABDetalhe({
                       </TableCell>
                       <TableCell className="text-right pr-4">
                         {url ? (
-                          <a
-                            href={url}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <button
+                            type="button"
+                            onClick={() => downloadS3Document(url)}
                             className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
                           >
                             <Download className="h-3.5 w-3.5" />
                             Baixar
-                          </a>
+                          </button>
                         ) : (
                           <span className="text-xs text-muted-foreground">Indisponível</span>
                         )}
@@ -887,7 +936,7 @@ function CasosOABLista({
                 }`}
               >
                 <TableCell className="pl-5">
-                  <span className="font-mono text-sm font-medium">{c.numero}</span>
+                  <span className="font-mono text-sm font-medium">{formatProcessoNumber(c.numero)}</span>
                 </TableCell>
                 <TableCell className="hidden md:table-cell">
                   <div className="flex flex-col gap-0.5">
