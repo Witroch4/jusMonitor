@@ -213,6 +213,9 @@ async def protocolar_via_scraper(
     totp_algorithm: Optional[str] = None,
     totp_digits: Optional[int] = None,
     totp_period: Optional[int] = None,
+    tipo_peticao: Optional[str] = None,
+    dados_basicos: Optional[dict] = None,
+    documentos_extras: Optional[list] = None,
 ) -> dict:
     """Protocolar petição via Playwright (RPA) no scraper microservice.
 
@@ -221,27 +224,35 @@ async def protocolar_via_scraper(
     Returns: {sucesso, mensagem, numero_protocolo, screenshots}
     """
     logger.info(
-        "protocolar_via_scraper START tribunal=%s processo=%s tipo=%s desc=%s",
-        tribunal, numero_processo, tipo_documento, descricao[:50],
+        "protocolar_via_scraper START tribunal=%s processo=%s tipo=%s tipo_peticao=%s desc=%s",
+        tribunal, numero_processo, tipo_documento, tipo_peticao, descricao[:50],
     )
 
     try:
+        payload = {
+            "tribunal": tribunal.lower().strip(),
+            "numero_processo": numero_processo.strip(),
+            "pfx_base64": pfx_base64,
+            "pfx_password": pfx_password,
+            "pdf_base64": pdf_base64,
+            "tipo_documento": tipo_documento,
+            "descricao": descricao,
+            "totp_secret": totp_secret,
+            "totp_algorithm": totp_algorithm,
+            "totp_digits": totp_digits,
+            "totp_period": totp_period,
+        }
+        if tipo_peticao:
+            payload["tipo_peticao"] = tipo_peticao
+        if dados_basicos:
+            payload["dados_basicos"] = dados_basicos
+        if documentos_extras:
+            payload["documentos_extras"] = documentos_extras
+
         async with httpx.AsyncClient(timeout=TIMEOUT_PROTOCOLAR) as client:
             resp = await client.post(
                 f"{SCRAPER_BASE_URL}/scrape/protocolar-peticao",
-                json={
-                    "tribunal": tribunal.lower().strip(),
-                    "numero_processo": numero_processo.strip(),
-                    "pfx_base64": pfx_base64,
-                    "pfx_password": pfx_password,
-                    "pdf_base64": pdf_base64,
-                    "tipo_documento": tipo_documento,
-                    "descricao": descricao,
-                    "totp_secret": totp_secret,
-                    "totp_algorithm": totp_algorithm,
-                    "totp_digits": totp_digits,
-                    "totp_period": totp_period,
-                },
+                json=payload,
             )
             resp.raise_for_status()
             result = resp.json()

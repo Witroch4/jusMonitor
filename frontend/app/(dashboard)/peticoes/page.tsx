@@ -52,6 +52,10 @@ function PeticoesContent() {
     setView('form')
   }
 
+  function handleRascunhoSalvo(id: string) {
+    setRascunhoId(id)
+  }
+
   function handleVoltar() {
     setInitialProcessoNumero('')
     setRascunhoId(null)
@@ -67,6 +71,7 @@ function PeticoesContent() {
       onVoltar={handleVoltar}
       rascunhoId={rascunhoId ?? undefined}
       initialProcessoNumero={initialProcessoNumero || undefined}
+      onRascunhoSalvo={handleRascunhoSalvo}
     />
   )
 }

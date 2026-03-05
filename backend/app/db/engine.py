@@ -1,5 +1,6 @@
 """SQLAlchemy async engine and session configuration."""
 
+from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import (
@@ -52,13 +53,14 @@ AsyncSessionLocal = async_sessionmaker(
 )
 
 
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
+async def get_session() -> AsyncGenerator[AsyncSession, None]:
     """
-    FastAPI dependency for database sessions.
+    FastAPI dependency for database sessions (used via Depends(get_session)).
+    Also aliased as get_db.
     
     Usage:
         @app.get("/items")
-        async def get_items(db: AsyncSession = Depends(get_db)):
+        async def get_items(session: AsyncSession = Depends(get_session)):
             ...
     """
     async with AsyncSessionLocal() as session:
@@ -72,18 +74,30 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             await session.close()
 
 
-async def get_session() -> AsyncSession:
+# Alias for backwards compatibility
+get_db = get_session
+
+
+@asynccontextmanager
+async def get_session_ctx() -> AsyncGenerator[AsyncSession, None]:
     """
-    Get a database session (non-dependency version).
+    Async context manager for database sessions in non-FastAPI code (workers, scripts).
     
     Usage:
-        async with get_session() as session:
+        async with get_session_ctx() as session:
             ...
     
-    Returns:
-        AsyncSession instance
+    Properly manages commit/rollback/close lifecycle.
     """
-    return AsyncSessionLocal()
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
 
 
 async def close_db() -> None:

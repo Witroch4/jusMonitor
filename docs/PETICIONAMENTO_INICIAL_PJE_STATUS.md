@@ -1142,3 +1142,164 @@ Contém:
 - `get_materia_value(texto)` — busca value por texto
 - `get_jurisdicao_value(tribunal_code, texto)` — busca value por tribunal+texto
 - `get_jurisdicao_by_orgao(tribunal_code, orgao_cnj)` — infere jurisdição pelo código CNJ do órgão
+- `CARACTERISTICAS_IDS` — IDs dos campos de características (justiça gratuita, juízo digital, etc.)
+- `PRIORIDADE_MAP` — mapeamento de prioridades para values do PJe
+
+---
+
+## Automação Implementada (scraper)
+
+**Última atualização:** 04/03/2026
+
+### Arquitetura da chamada
+
+```
+Frontend (PeticaoForm)
+  → Backend API (POST /peticoes)
+    → Worker (peticao_protocolar.py)
+      → scraper_client.protocolar_via_scraper(tipo_peticao="peticao_inicial", dados_basicos={...})
+        → Scraper HTTP (POST /scrape/protocolar-peticao)
+          → pje_peticionamento.protocolar_peticao_pje()
+            → if tipo_peticao == "peticao_inicial":
+                _fluxo_peticao_inicial()    ← 6 steps
+              else:
+                _navegar_para_processo()     ← petição avulsa (existente)
+```
+
+### Arquivos modificados
+
+| Arquivo | Mudança |
+|---------|---------|
+| `scraper/app/schemas.py` | `DocumentoExtra` model + campos `tipo_peticao`, `dados_basicos`, `documentos_extras` em `ProtocolarPeticaoRequest` |
+| `scraper/app/main.py` | Converte `documentos_extras` e passa novos campos para `protocolar_peticao_pje()` |
+| `scraper/app/scrapers/pje_peticionamento.py` | Routing `tipo_peticao` + `_fluxo_peticao_inicial()` (6 steps) + 3 helpers de partes |
+| `backend/app/core/services/scraper_client.py` | Params `tipo_peticao`, `dados_basicos`, `documentos_extras` em `protocolar_via_scraper()` |
+| `backend/app/workers/tasks/peticao_protocolar.py` | Extrai `tipo_peticao`, `dados_basicos_json`, monta `documentos_extras` (base64) |
+| `scraper/app/data/pje_cadastro_dados.py` | Dados de referência (SELECT_IDS, MATERIAS, JURISDICOES, etc.) — já existente |
+
+### Dados esperados em `dados_basicos` (JSON)
+
+```json
+{
+  "classeProcessual": "120",
+  "codigoLocalidade": "3300",
+  "valorCausa": "10000.00",
+  "justicaGratuita": true,
+  "juizoDigital": false,
+  "pedidoLiminar": true,
+  "nivelSigilo": 0,
+  "prioridade": ["idoso"],
+  "assuntos": [
+    {"codigoNacional": "10170", "principal": true},
+    {"codigoNacional": "10379", "principal": false}
+  ],
+  "polos": [
+    {
+      "polo": "AT",
+      "partes": [
+        {
+          "nome": "FULANO DA SILVA",
+          "tipoParte": "AUTOR",
+          "tipoPessoa": "F",
+          "numeroDocumentoPrincipal": "52376389100"
+        }
+      ]
+    },
+    {
+      "polo": "PA",
+      "partes": [
+        {
+          "nome": "ORDEM DOS ADVOGADOS DO BRASIL",
+          "tipoParte": "IMPETRADO",
+          "tipoPessoa": "J",
+          "numeroDocumentoPrincipal": "33205451000114",
+          "orgaoPublico": false
+        },
+        {
+          "nome": "PRESIDENTE DO CONSELHO FEDERAL DA OAB",
+          "tipoParte": "IMPETRADO",
+          "tipoPessoa": "A"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Step 1 — Navegação para `cadastrar.seam`
+
+**Problema encontrado:** `page.goto(cadastrar_url)` retorna "Página não encontrada" — JSF/Seam não aceita navegação direta.
+
+**Solução implementada — 3 tentativas em cascata:**
+
+1. **Menu PJe**: Clica "Abrir menu" → "Processo" → submenu com href contendo `CadastroPeticaoInicial`
+2. **goto direto** com `wait_until="networkidle"` (ao invés de `domcontentloaded`)
+3. **`window.location.href`** via JS (preserva contexto JSF da sessão logada)
+
+Após cada tentativa, verifica se o formulário carregou buscando o select de Matéria:
+```javascript
+!!document.getElementById('processoTrfForm:classeJudicial:j_id207:areaDireitoCombo')
+```
+
+Se nenhuma tentativa funcionar, retorna erro com screenshot para diagnóstico.
+
+### Step 1 — Preenchimento dos selects (Matéria → Jurisdição → Classe)
+
+Os 3 selects são **widgets RichFaces** com `<select>` nativo escondido. A cadeia A4J:
+
+```
+Matéria.change → (A4J ~3s) → Jurisdição options carregadas
+Jurisdição.change → (A4J ~3s) → Classe Judicial options carregadas
+```
+
+Automação via JS:
+```javascript
+const el = document.getElementById(selectId);
+el.value = value;
+el.dispatchEvent(new Event('change', {bubbles: true}));
+```
+
+**Inferência de valores:**
+- **Matéria**: Default `1861` (DIREITO ADMINISTRATIVO). TODO: inferir do primeiro assunto.
+- **Jurisdição**: Infere via `get_jurisdicao_by_orgao("trf1", codigoLocalidade)`. Fallback: `1` (SJBA).
+- **Classe**: Direto do `dados_basicos.classeProcessual` (ex: `120` = MANDADO DE SEGURANÇA).
+
+### Step 3 — Partes: Órgão Público (Sim/Não)
+
+**Fluxo Pessoa Jurídica — dois caminhos conforme `orgaoPublico`:**
+
+| `orgaoPublico` | Fluxo | Campos | Botão final |
+|---|---|---|---|
+| **Sim** (default PJe) | Nome → Pesquisar → Tabela resultados → Radio → | `preCadastroPessoaFisica_nomePJ` | **Inserir** |
+| **Não** | CNPJ → Pesquisar → Auto-preenche nome → | campo `cnpj` | **CONFIRMAR** → **Vincular Parte** |
+
+**IDs dos radios Órgão Público:**
+- Sim: `preCadastroPessoaFisicaForm:isOrgaoPublico1Decoration:isOrgaoPublico1SelectOneRadio:0` (value=`true`)
+- Não: `preCadastroPessoaFisicaForm:isOrgaoPublico1Decoration:isOrgaoPublico1SelectOneRadio:1` (value=`false`)
+
+**Decisão automática:** Se `parte.orgaoPublico` não fornecido, infere:
+- Tem CNPJ → `orgaoPublico = false` (busca por CNPJ)
+- Sem CNPJ → `orgaoPublico = true` (busca por nome)
+
+### Step 3 — Tipos de pessoa (3 helpers)
+
+| Tipo | Função | Fluxo |
+|---|---|---|
+| Pessoa Física (CPF) | `_adicionar_parte_pessoa_fisica()` | Radio Física → CPF → Pesquisar → PJe auto-preenche nome → Confirmar → Vincular |
+| Pessoa Jurídica (CNPJ) | `_adicionar_parte_pessoa_juridica()` | Radio Jurídica → Órgão Público Sim/Não → (ver tabela acima) |
+| Ente ou Autoridade | `_adicionar_parte_ente()` | Radio Ente → Autocomplete nome → Selecionar sugestão → Confirmar → Vincular |
+
+### Step 5 — Assinatura de documentos
+
+A assinatura usa o interceptor PJeOffice V3 já implementado em `_assinar_e_enviar()`:
+- Intercepta `img.src` para `localhost:8800/pjeOffice/requisicao/`
+- Extrai task `cnj.assinadorHash` com hashes dos PDFs
+- Assina hashes com a chave privada do certificado A1 (MD5withRSA / ASN1)
+- Faz POST do resultado assinado de volta ao PJe
+- Injeta resposta GIF (width=1 = sucesso) via canvas
+
+### Step 6 — Protocolar
+
+O botão "Protocolar" (`e772`) **não** chama PJeOffice novamente. Apenas valida que os documentos foram assinados no Step 5 e submete o processo. Retorna o número CNJ do processo gerado.
+
+**Nota:** Se os documentos não estiverem assinados, o PJe exibe erro "documento pendente de assinatura".

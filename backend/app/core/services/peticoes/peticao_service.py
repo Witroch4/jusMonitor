@@ -56,9 +56,10 @@ class PeticaoService:
             processo_numero = "00000000000000000000"
 
         # Serialize dados_basicos to JSON if provided
+        # Use by_alias=True so camelCase keys are stored in JSONB (frontend-readable)
         dados_basicos_json = None
         if data.dados_basicos:
-            dados_basicos_json = data.dados_basicos.model_dump(mode="json")
+            dados_basicos_json = data.dados_basicos.model_dump(mode="json", by_alias=True)
 
         repo = PeticaoRepository(session, tenant_id)
         pet = await repo.create(

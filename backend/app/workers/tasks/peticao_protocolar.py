@@ -351,10 +351,24 @@ async def protocolar_peticao_task(peticao_id: str, tenant_id: str) -> dict:
                 or principal_doc["nome"]
             )
 
+            # Montar documentos extras (anexos) para petição inicial
+            docs_extras_list = None
+            if len(documentos_pdf_raw) > 1:
+                docs_extras_list = []
+                for doc in documentos_pdf_raw[1:]:
+                    docs_extras_list.append({
+                        "pdf_base64": base64.b64encode(doc["conteudo"]).decode("ascii"),
+                        "tipo_documento": doc.get("tipo_documento", "Anexo"),
+                        "descricao": doc.get("nome", ""),
+                        "sigiloso": False,
+                    })
+
             logger.info(
-                "[WORKER] Chamando scraper: pfx=%d bytes, pdf=%d bytes, tipo=%s, desc=%s",
+                "[WORKER] Chamando scraper: pfx=%d bytes, pdf=%d bytes, tipo=%s, tipo_peticao=%s, desc=%s, extras=%d",
                 len(pfx_raw), len(principal_doc["conteudo"]),
-                tipo_doc_scraper, descricao_scraper[:50],
+                tipo_doc_scraper, pet.tipo_peticao.value if pet.tipo_peticao else None,
+                descricao_scraper[:50],
+                len(docs_extras_list) if docs_extras_list else 0,
             )
 
             from app.core.services.scraper_client import protocolar_via_scraper
@@ -371,6 +385,9 @@ async def protocolar_peticao_task(peticao_id: str, tenant_id: str) -> dict:
                 totp_algorithm=totp_algorithm,
                 totp_digits=totp_digits,
                 totp_period=totp_period,
+                tipo_peticao=pet.tipo_peticao.value if pet.tipo_peticao else None,
+                dados_basicos=pet.dados_basicos_json,
+                documentos_extras=docs_extras_list,
             )
 
             logger.info(

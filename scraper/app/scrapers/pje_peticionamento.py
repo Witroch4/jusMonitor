@@ -292,6 +292,9 @@ async def protocolar_peticao_pje(
     totp_algorithm: Optional[str] = None,
     totp_digits: Optional[int] = None,
     totp_period: Optional[int] = None,
+    tipo_peticao: Optional[str] = None,
+    dados_basicos: Optional[dict] = None,
+    documentos_extras: Optional[list] = None,
 ) -> PeticionamentoResult:
     """Protocolar petição via Playwright no PJe.
 
@@ -841,6 +844,30 @@ async def protocolar_peticao_pje(
 
         logger.info("%s ✓ Login confirmado! Painel do advogado detectado.", tag)
 
+        # ══════════ ROUTING: Petição Inicial vs Petição Avulsa ══════════
+        is_peticao_inicial = (tipo_peticao == "peticao_inicial")
+
+        if is_peticao_inicial:
+            logger.info("%s ═══ FLUXO PETIÇÃO INICIAL ═══ (cadastro de novo processo)", tag)
+            return await _fluxo_peticao_inicial(
+                page=page,
+                base_url=base_url,
+                dados_basicos=dados_basicos or {},
+                pdf_path=pdf_path,
+                pdf_bytes=pdf_bytes,
+                private_key=_private_key,
+                certchain_b64=_certchain_b64,
+                cert_der_b64=base64.b64encode(_cert_obj.public_bytes(Encoding.DER)).decode("ascii"),
+                tipo_documento=tipo_documento,
+                descricao=descricao,
+                documentos_extras=documentos_extras,
+                tag=tag,
+                screenshots=screenshots,
+            )
+
+        # ═══ FLUXO PETIÇÃO AVULSA (processo existente) ═══
+        logger.info("%s ═══ FLUXO PETIÇÃO AVULSA ═══ processo=%s", tag, numero_processo)
+
         # ── Step 8: Navegar até Petição Avulsa e buscar processo ──
         logger.info("%s Navegando até Petição Avulsa para processo %s...", tag, numero_processo)
 
@@ -1004,6 +1031,1019 @@ async def protocolar_peticao_pje(
                 pass
         _cleanup_pem_files(cert_path or "", key_path or "", pdf_path)
         logger.info("%s ══════════ FIM PETICIONAMENTO ══════════", tag)
+
+
+# ──────────────────────────────────────────────────────────────────
+# Sub-steps: PETIÇÃO INICIAL (cadastro de novo processo)
+# Fluxo: cadastrar.seam → tab=assunto → tab=parte → tab=caracteristica
+#         → tab=documento → tab=protocolar
+# Documentação completa: docs/PETICIONAMENTO_INICIAL_PJE_STATUS.md
+# ──────────────────────────────────────────────────────────────────
+
+
+async def _fluxo_peticao_inicial(
+    page: "Page",
+    base_url: str,
+    dados_basicos: dict,
+    pdf_path: str,
+    pdf_bytes: bytes,
+    private_key,
+    certchain_b64: str,
+    cert_der_b64: str,
+    tipo_documento: str,
+    descricao: str,
+    documentos_extras: Optional[list],
+    tag: str,
+    screenshots: list,
+) -> "PeticionamentoResult":
+    """Fluxo completo de Petição Inicial: cadastro de novo processo no PJe.
+
+    Etapas:
+      1. cadastrar.seam → Matéria + Jurisdição + Classe → Incluir → obter idProcesso
+      2. tab=assunto → Adicionar assuntos TPU
+      3. tab=parte → Adicionar partes (polo ativo/passivo)
+      4. tab=caracteristica → Justiça gratuita, juízo digital, liminar, valor, sigilo, prioridades
+      5. tab=documento → Upload PDF principal + anexos + Assinar
+      6. tab=protocolar → Protocolar → obter número do processo
+    """
+    from app.data.pje_cadastro_dados import (
+        SELECT_IDS, MATERIAS, JURISDICOES,
+        get_jurisdicao_by_orgao, get_jurisdicao_value,
+        CARACTERISTICAS_IDS, PRIORIDADE_MAP,
+    )
+
+    # ══════════ STEP 1: Cadastrar Processo (cadastrar.seam) ══════════
+    logger.info("%s [INICIAL-STEP1] Navegando para cadastrar.seam...", tag)
+
+    cadastrar_url = f"{base_url}/Processo/CadastroPeticaoInicial/cadastrar.seam?newInstance=true"
+
+    # Tentativa 1: Navegar via menu PJe (mais confiável que goto direto)
+    form_loaded = False
+    try:
+        # Abrir menu lateral PJe
+        logger.info("%s [INICIAL-STEP1] Abrindo menu PJe...", tag)
+        menu_clicked = await page.evaluate(
+            """() => {
+                const links = document.querySelectorAll('a, button');
+                for (const a of links) {
+                    const text = (a.textContent || '').trim().toLowerCase();
+                    if (text.includes('abrir menu') || text.includes('menu de navegação')) {
+                        a.click();
+                        return true;
+                    }
+                }
+                return false;
+            }"""
+        )
+        if menu_clicked:
+            await asyncio.sleep(2)
+
+            # Procurar link para "Processo" no menu
+            await page.evaluate(
+                """() => {
+                    const links = document.querySelectorAll('a');
+                    for (const a of links) {
+                        const text = (a.textContent || '').trim().toLowerCase();
+                        if (text === 'processo' || text.includes('novo processo')) {
+                            a.click();
+                            return true;
+                        }
+                    }
+                    return false;
+                }"""
+            )
+            await asyncio.sleep(1.5)
+
+            # Procurar submenu "Novo processo" ou "Cadastrar"
+            nav_found = await page.evaluate(
+                """() => {
+                    const links = document.querySelectorAll('a');
+                    for (const a of links) {
+                        const text = (a.textContent || '').trim().toLowerCase();
+                        const href = (a.href || '').toLowerCase();
+                        if (href.includes('cadastropeticaoinicial') ||
+                            text.includes('novo processo') ||
+                            text.includes('cadastrar processo') ||
+                            text.includes('petição inicial')) {
+                            a.click();
+                            return true;
+                        }
+                    }
+                    return false;
+                }"""
+            )
+            if nav_found:
+                logger.info("%s [INICIAL-STEP1] Navegando via menu PJe...", tag)
+                await asyncio.sleep(4)
+                # Verificar se o form carregou
+                form_loaded = await page.evaluate(
+                    """(selectId) => !!document.getElementById(selectId)""",
+                    SELECT_IDS["materia"],
+                )
+    except Exception as e:
+        logger.warning("%s [INICIAL-STEP1] Menu navigation falhou: %s", tag, e)
+
+    # Tentativa 2: goto direto (pode funcionar em algumas versões do PJe)
+    if not form_loaded:
+        logger.info("%s [INICIAL-STEP1] Tentando goto direto: %s", tag, cadastrar_url)
+        await page.goto(cadastrar_url, wait_until="networkidle", timeout=30_000)
+        await asyncio.sleep(3)
+        form_loaded = await page.evaluate(
+            """(selectId) => !!document.getElementById(selectId)""",
+            SELECT_IDS["materia"],
+        )
+
+    # Tentativa 3: window.location.href (preserva contexto JSF)
+    if not form_loaded:
+        logger.info("%s [INICIAL-STEP1] Tentando window.location.href...", tag)
+        await page.evaluate(f"() => window.location.href = '{cadastrar_url}'")
+        try:
+            await page.wait_for_load_state("networkidle", timeout=15_000)
+        except Exception:
+            pass
+        await asyncio.sleep(3)
+        form_loaded = await page.evaluate(
+            """(selectId) => !!document.getElementById(selectId)""",
+            SELECT_IDS["materia"],
+        )
+
+    s = await _screenshot(page, "ini_01_cadastrar", tag)
+    if s:
+        screenshots.append(s)
+
+    if not form_loaded:
+        body = await page.inner_text("body")
+        logger.error(
+            "%s [INICIAL-STEP1] Formulário cadastrar.seam não carregou! URL=%s body=%s",
+            tag, page.url, body[:2000],
+        )
+        return PeticionamentoResult(
+            sucesso=False,
+            mensagem=f"Formulário de cadastro não carregou. Verifique permissões. URL={page.url}",
+            screenshots=screenshots,
+        )
+
+    logger.info("%s [INICIAL-STEP1] ✓ Formulário cadastrar.seam carregado!", tag)
+
+    # Extrair dados do dados_basicos
+    classe_processual = dados_basicos.get("classeProcessual") or dados_basicos.get("classe_processual")
+    codigo_localidade = dados_basicos.get("codigoLocalidade") or dados_basicos.get("codigo_localidade")
+    assuntos = dados_basicos.get("assuntos", [])
+    polos = dados_basicos.get("polos", [])
+    valor_causa = dados_basicos.get("valorCausa") or dados_basicos.get("valor_causa")
+    justica_gratuita = dados_basicos.get("justicaGratuita") or dados_basicos.get("justica_gratuita", False)
+    juizo_digital = dados_basicos.get("juizoDigital") or dados_basicos.get("juizo_digital", False)
+    pedido_liminar = dados_basicos.get("pedidoLiminar") or dados_basicos.get("pedido_liminar", False)
+    nivel_sigilo = dados_basicos.get("nivelSigilo") or dados_basicos.get("nivel_sigilo", 0)
+    prioridades = dados_basicos.get("prioridade", [])
+
+    # Determinar Matéria via primeiro assunto ou padrão DIREITO ADMINISTRATIVO
+    # O PJe não tem um campo de matéria explícito no dados_basicos, inferimos do primeiro assunto
+    # Para a maioria dos processos federais, é DIREITO ADMINISTRATIVO (value=1861)
+    materia_value = "1861"  # Default: DIREITO ADMINISTRATIVO
+
+    # Determinar Jurisdição pelo código do órgão (últimos 4 dígitos do processo)
+    jurisdicao_value = None
+    if codigo_localidade:
+        jurisdicao_value = get_jurisdicao_by_orgao("trf1", str(codigo_localidade))
+    if not jurisdicao_value:
+        # Fallback: usar primeira jurisdição disponível
+        jurisdicao_value = "1"  # SJBA default
+        logger.warning("%s [INICIAL-STEP1] Jurisdição não inferida, usando default (SJBA)", tag)
+
+    # Classe processual (value do select PJe — numérico, ex: 120 para MANDADO DE SEGURANÇA)
+    classe_value = str(classe_processual) if classe_processual else None
+    if not classe_value:
+        logger.error("%s [INICIAL-STEP1] classeProcessual não fornecida nos dados_basicos!", tag)
+        return PeticionamentoResult(
+            sucesso=False,
+            mensagem="Classe processual não fornecida nos dados básicos.",
+            screenshots=screenshots,
+        )
+
+    logger.info(
+        "%s [INICIAL-STEP1] Matéria=%s Jurisdição=%s Classe=%s",
+        tag, materia_value, jurisdicao_value, classe_value,
+    )
+
+    # Preencher Matéria (dispara A4J que carrega Jurisdição)
+    await page.evaluate(
+        """([selectId, value]) => {
+            const el = document.getElementById(selectId);
+            if (el) {
+                el.value = value;
+                el.dispatchEvent(new Event('change', {bubbles: true}));
+            }
+        }""",
+        [SELECT_IDS["materia"], materia_value],
+    )
+    await asyncio.sleep(3)  # Aguardar A4J carregar Jurisdição
+
+    # Preencher Jurisdição (dispara A4J que carrega Classe)
+    await page.evaluate(
+        """([selectId, value]) => {
+            const el = document.getElementById(selectId);
+            if (el) {
+                el.value = value;
+                el.dispatchEvent(new Event('change', {bubbles: true}));
+            }
+        }""",
+        [SELECT_IDS["jurisdicao"], jurisdicao_value],
+    )
+    await asyncio.sleep(3)  # Aguardar A4J carregar Classe Judicial
+
+    # Preencher Classe Judicial
+    await page.evaluate(
+        """([selectId, value]) => {
+            const el = document.getElementById(selectId);
+            if (el) {
+                el.value = value;
+                el.dispatchEvent(new Event('change', {bubbles: true}));
+            }
+        }""",
+        [SELECT_IDS["classe"], classe_value],
+    )
+    await asyncio.sleep(1)
+
+    s = await _screenshot(page, "ini_01b_formulario_preenchido", tag)
+    if s:
+        screenshots.append(s)
+
+    # Clicar Incluir
+    logger.info("%s [INICIAL-STEP1] Clicando Incluir...", tag)
+    await page.evaluate(
+        "() => document.getElementById('processoTrfForm:incluiProcessoButton')?.click()"
+    )
+    await asyncio.sleep(5)  # Redirect para update.seam?idProcesso=X&tab=assunto
+
+    # Capturar idProcesso da URL
+    current_url = page.url
+    id_processo_match = re.search(r"idProcesso=(\d+)", current_url)
+    if not id_processo_match:
+        body = await page.inner_text("body")
+        logger.error(
+            "%s [INICIAL-STEP1] idProcesso não encontrado após Incluir! URL=%s body=%s",
+            tag, current_url, body[:2000],
+        )
+        s = await _screenshot(page, "ini_01c_erro_incluir", tag)
+        if s:
+            screenshots.append(s)
+        return PeticionamentoResult(
+            sucesso=False,
+            mensagem=f"Falha ao cadastrar processo. URL={current_url}",
+            screenshots=screenshots,
+        )
+
+    id_processo = id_processo_match.group(1)
+    logger.info("%s [INICIAL-STEP1] ✓ Processo cadastrado! idProcesso=%s", tag, id_processo)
+
+    update_base = f"{base_url}/Processo/CadastroPeticaoInicial/update.seam?idProcesso={id_processo}"
+
+    # ══════════ STEP 2: Tab Assuntos ══════════
+    logger.info("%s [INICIAL-STEP2] Navegando para tab=assunto...", tag)
+    await page.goto(f"{update_base}&tab=assunto", wait_until="domcontentloaded", timeout=30_000)
+    await asyncio.sleep(3)
+
+    for i, assunto in enumerate(assuntos):
+        codigo = str(assunto.get("codigoNacional") or assunto.get("codigo_nacional", ""))
+        is_principal = assunto.get("principal", i == 0)
+
+        if not codigo:
+            logger.warning("%s [INICIAL-STEP2] Assunto[%d] sem código, pulando", tag, i)
+            continue
+
+        logger.info("%s [INICIAL-STEP2] Adicionando assunto[%d]: código=%s principal=%s", tag, i, codigo, is_principal)
+
+        # Preencher campo código e pesquisar
+        campo_codigo = "r_processoAssuntoListSearchForm:j_id4726:j_id4728:codAssuntoTrf"
+        await page.evaluate(
+            """([fieldId, valor]) => {
+                const el = document.getElementById(fieldId);
+                if (el) { el.value = valor; el.dispatchEvent(new Event('change', {bubbles: true})); }
+            }""",
+            [campo_codigo, codigo],
+        )
+        await asyncio.sleep(0.5)
+
+        # Clicar Pesquisar (buscar o botão no form de assuntos)
+        await page.evaluate(
+            """() => {
+                const form = document.getElementById('r_processoAssuntoListSearchForm');
+                if (form) {
+                    const btns = form.querySelectorAll('button, input[type="submit"]');
+                    for (const btn of btns) {
+                        if (btn.textContent.trim().toLowerCase().includes('pesquisar') ||
+                            btn.value?.toLowerCase().includes('pesquisar')) {
+                            btn.click();
+                            return;
+                        }
+                    }
+                }
+            }"""
+        )
+        await asyncio.sleep(2)  # Aguardar A4J
+
+        # Clicar na seta "adicionar" da primeira linha de resultado
+        add_link = f"r_processoAssuntoListList:0:j_id4758:j_id4759:j_id4760"
+        await page.evaluate(
+            """(linkId) => {
+                const el = document.getElementById(linkId);
+                if (el) el.click();
+            }""",
+            add_link,
+        )
+        await asyncio.sleep(2)
+
+        # Se é principal, marcar o radio "Assunto Principal"
+        if is_principal:
+            await page.evaluate(
+                """() => {
+                    // O radio de principal está na tabela de assuntos associados
+                    const radios = document.querySelectorAll('input[type="radio"][name*="principal"]');
+                    if (radios.length > 0) {
+                        radios[radios.length - 1].click();
+                    }
+                }"""
+            )
+            await asyncio.sleep(1)
+
+    s = await _screenshot(page, "ini_02_assuntos", tag)
+    if s:
+        screenshots.append(s)
+    logger.info("%s [INICIAL-STEP2] ✓ Assuntos adicionados: %d", tag, len(assuntos))
+
+    # ══════════ STEP 3: Tab Partes ══════════
+    logger.info("%s [INICIAL-STEP3] Navegando para tab=parte...", tag)
+    await page.goto(f"{update_base}&tab=parte", wait_until="domcontentloaded", timeout=30_000)
+    await asyncio.sleep(3)
+
+    for polo in polos:
+        polo_tipo = polo.get("polo", "").upper()  # "AT" (ativo) ou "PA" (passivo)
+        partes = polo.get("partes", [])
+
+        # Determinar botão de adicionar parte
+        if polo_tipo in ("AT", "ATIVO"):
+            btn_add_id = "addParteA"
+        elif polo_tipo in ("PA", "PASSIVO"):
+            btn_add_id = "addParteP"
+        else:
+            logger.warning("%s [INICIAL-STEP3] Polo desconhecido: %s, pulando", tag, polo_tipo)
+            continue
+
+        for j, parte in enumerate(partes):
+            nome = parte.get("nome", "")
+            cpf_cnpj = parte.get("numeroDocumentoPrincipal") or parte.get("numero_documento_principal") or parte.get("cpf") or parte.get("cnpj", "")
+            tipo_parte = parte.get("tipoParte") or parte.get("tipo_parte", "")
+            tipo_pessoa = parte.get("tipoPessoa") or parte.get("tipo_pessoa", "")
+            orgao_publico = parte.get("orgaoPublico", parte.get("orgao_publico"))
+
+            # Pular advogados — já vinculados automaticamente
+            if tipo_parte and tipo_parte.upper() == "ADVOGADO":
+                logger.info("%s [INICIAL-STEP3] Pulando ADVOGADO: %s", tag, nome)
+                continue
+
+            logger.info(
+                "%s [INICIAL-STEP3] Adicionando parte[%d] polo=%s: nome=%s cpf_cnpj=%s tipo=%s tipoPessoa=%s orgaoPublico=%s",
+                tag, j, polo_tipo, nome[:50], cpf_cnpj, tipo_parte, tipo_pessoa, orgao_publico,
+            )
+
+            # Clicar [+] Parte no polo correspondente
+            await page.evaluate(f"() => document.getElementById('{btn_add_id}')?.click()")
+            await asyncio.sleep(2)
+
+            # Selecionar Tipo da Parte via combobox RichFaces
+            if tipo_parte:
+                tipo_upper = tipo_parte.upper()
+                try:
+                    # Abrir dropdown combobox
+                    combobox = page.get_by_role("combobox", name="Selecione")
+                    if await combobox.count() > 0:
+                        await combobox.first.click()
+                        await asyncio.sleep(0.5)
+                        # Clicar no treeitem correspondente
+                        treeitem = page.get_by_role("treeitem", name=re.compile(tipo_upper, re.IGNORECASE))
+                        if await treeitem.count() > 0:
+                            await treeitem.first.click()
+                            await asyncio.sleep(1.5)  # Aguardar A4J
+                except Exception as e:
+                    logger.warning("%s [INICIAL-STEP3] Erro selecionando tipo parte %s: %s", tag, tipo_parte, e)
+
+            # Determinar tipo de pessoa e preencher
+            cpf_cnpj_clean = re.sub(r"\D", "", cpf_cnpj) if cpf_cnpj else ""
+
+            if tipo_pessoa.upper() in ("A", "AUTORIDADE", "ENTE") or (not cpf_cnpj_clean and not tipo_pessoa):
+                # Fluxo: Ente ou autoridade (autocomplete)
+                await _adicionar_parte_ente(page, nome, tag)
+
+            elif len(cpf_cnpj_clean) == 11 or tipo_pessoa.upper() in ("F", "FISICA", "FÍSICA"):
+                # Fluxo: Pessoa Física (CPF)
+                await _adicionar_parte_pessoa_fisica(page, cpf_cnpj_clean, nome, tag)
+
+            elif len(cpf_cnpj_clean) == 14 or tipo_pessoa.upper() in ("J", "JURIDICA", "JURÍDICA"):
+                # Fluxo: Pessoa Jurídica (CNPJ) — Órgão Público Sim ou Não
+                is_orgao = orgao_publico is True or str(orgao_publico).lower() in ("true", "sim", "1") if orgao_publico is not None else None
+                await _adicionar_parte_pessoa_juridica(page, cpf_cnpj_clean, nome, tag, orgao_publico=is_orgao)
+
+            else:
+                # Fallback: tentar por nome como ente/autoridade
+                logger.warning("%s [INICIAL-STEP3] Tipo pessoa indefinido, tentando como ente: %s", tag, nome)
+                await _adicionar_parte_ente(page, nome, tag)
+
+    s = await _screenshot(page, "ini_03_partes", tag)
+    if s:
+        screenshots.append(s)
+    logger.info("%s [INICIAL-STEP3] ✓ Partes adicionadas", tag)
+
+    # ══════════ STEP 4: Tab Características ══════════
+    logger.info("%s [INICIAL-STEP4] Navegando para tab=caracteristica...", tag)
+    await page.goto(f"{update_base}&tab=caracteristica", wait_until="domcontentloaded", timeout=30_000)
+    await asyncio.sleep(3)
+
+    # Formulário 1: Características Principais
+    if justica_gratuita:
+        await page.evaluate(f"() => document.getElementById('{CARACTERISTICAS_IDS['justica_gratuita_sim']}')?.click()")
+    # Juízo Digital (OBRIGATÓRIO selecionar Sim ou Não)
+    if juizo_digital:
+        await page.evaluate(f"() => document.getElementById('{CARACTERISTICAS_IDS['juizo_digital_sim']}')?.click()")
+    else:
+        await page.evaluate(f"() => document.getElementById('{CARACTERISTICAS_IDS['juizo_digital_nao']}')?.click()")
+    if pedido_liminar:
+        await page.evaluate(f"() => document.getElementById('{CARACTERISTICAS_IDS['liminar_sim']}')?.click()")
+    # Valor da causa
+    if valor_causa:
+        await page.evaluate(
+            """([fieldId, valor]) => {
+                const el = document.getElementById(fieldId);
+                if (el) { el.value = valor; el.dispatchEvent(new Event('change', {bubbles: true})); }
+            }""",
+            [CARACTERISTICAS_IDS["valor_causa"], str(valor_causa)],
+        )
+    await asyncio.sleep(0.5)
+
+    # Salvar Form 1
+    await page.evaluate(f"() => document.getElementById('{CARACTERISTICAS_IDS['btn_salvar']}')?.click()")
+    await asyncio.sleep(2)
+
+    # Formulário 2: Segredo de Justiça
+    if nivel_sigilo and int(nivel_sigilo) > 0:
+        await page.evaluate(f"() => document.getElementById('{CARACTERISTICAS_IDS['segredo_sim']}')?.click()")
+    else:
+        await page.evaluate(f"() => document.getElementById('{CARACTERISTICAS_IDS['segredo_nao']}')?.click()")
+    await page.evaluate(f"() => document.getElementById('{CARACTERISTICAS_IDS['btn_gravar_sigilo']}')?.click()")
+    await asyncio.sleep(2)
+
+    # Formulário 3: Prioridades
+    for prio_key in prioridades:
+        pje_value = PRIORIDADE_MAP.get(prio_key)
+        if not pje_value:
+            logger.warning("%s [INICIAL-STEP4] Prioridade desconhecida: %s", tag, prio_key)
+            continue
+        await page.evaluate(
+            """([selectId, value]) => {
+                const el = document.getElementById(selectId);
+                if (el) { el.value = value; el.dispatchEvent(new Event('change', {bubbles: true})); }
+            }""",
+            [CARACTERISTICAS_IDS["select_prioridade"], pje_value],
+        )
+        await asyncio.sleep(0.5)
+        await page.evaluate(f"() => document.getElementById('{CARACTERISTICAS_IDS['btn_incluir_prioridade']}')?.click()")
+        await asyncio.sleep(1.5)
+
+    s = await _screenshot(page, "ini_04_caracteristicas", tag)
+    if s:
+        screenshots.append(s)
+    logger.info("%s [INICIAL-STEP4] ✓ Características preenchidas", tag)
+
+    # ══════════ STEP 5: Tab Documentos ══════════
+    logger.info("%s [INICIAL-STEP5] Navegando para tab=documento...", tag)
+    await page.goto(f"{update_base}&tab=documento", wait_until="domcontentloaded", timeout=30_000)
+    await asyncio.sleep(3)
+
+    # Clicar na aba "Incluir petições e documentos" (pode estar oculta inicialmente)
+    await page.evaluate(
+        """() => {
+            const tabs = document.querySelectorAll('td.rich-tab-header');
+            for (const t of tabs) {
+                if (t.textContent.includes('Incluir petições') || t.textContent.includes('documento')) {
+                    t.click();
+                    return true;
+                }
+            }
+            return false;
+        }"""
+    )
+    await asyncio.sleep(2)
+
+    # Upload da petição principal
+    # Para petição inicial, tipo_documento = "Petição inicial" (value=62) — já vem pré-selecionado
+    # Garantir que o radio "Arquivo PDF" esteja selecionado (dispara A4J que injeta o file input)
+    await page.evaluate(
+        """() => {
+            const r = document.getElementById('raTipoDocPrincipal:0');
+            if (r && !r.checked) {
+                r.checked = true;
+                r.dispatchEvent(new Event('change', {bubbles: true}));
+                r.click();
+            }
+        }"""
+    )
+
+    # Aguardar o input[type=file] aparecer com retry (A4J pode demorar vários segundos)
+    file_input_id = "uploadDocumentoPrincipalDecoration:uploadDocumentoPrincipal:file"
+    file_input = page.locator(f"input[id='{file_input_id}']")
+    any_file_input = page.locator("input[type='file']")
+
+    file_found = False
+    for attempt in range(6):  # até 30s (6 x 5s)
+        # Tornar inputs visíveis (RichFaces os esconde)
+        await page.evaluate(
+            """() => {
+                document.querySelectorAll('input[type="file"]').forEach(i => {
+                    i.style.display = 'block';
+                    i.style.visibility = 'visible';
+                    i.style.opacity = '1';
+                    i.style.position = 'relative';
+                    i.style.width = '200px';
+                    i.style.height = '30px';
+                    i.style.zIndex = '9999';
+                    i.removeAttribute('disabled');
+                });
+            }"""
+        )
+        if await file_input.count() > 0:
+            await file_input.set_input_files(pdf_path)
+            logger.info("%s [INICIAL-STEP5] PDF principal enviado via file input (tentativa %d)", tag, attempt + 1)
+            file_found = True
+            await asyncio.sleep(5)
+            break
+        elif await any_file_input.count() > 0:
+            await any_file_input.first.set_input_files(pdf_path)
+            logger.info("%s [INICIAL-STEP5] PDF principal enviado via file input genérico (tentativa %d)", tag, attempt + 1)
+            file_found = True
+            await asyncio.sleep(5)
+            break
+        else:
+            logger.warning(
+                "%s [INICIAL-STEP5] File input não encontrado, tentativa %d/6 — aguardando A4J...",
+                tag, attempt + 1,
+            )
+            await asyncio.sleep(5)
+
+    if not file_found:
+        # Último fallback: usar _upload_pdf existente
+        logger.info("%s [INICIAL-STEP5] File input não encontrado após 30s, usando _upload_pdf", tag)
+        upload_ok = await _upload_pdf(page, pdf_path, tag)
+        if not upload_ok:
+            return PeticionamentoResult(
+                sucesso=False,
+                mensagem="Upload do PDF principal falhou.",
+                screenshots=screenshots,
+            )
+
+    s = await _screenshot(page, "ini_05a_pdf_uploaded", tag)
+    if s:
+        screenshots.append(s)
+
+    # Upload de documentos extras (anexos)
+    if documentos_extras:
+        for idx, doc_extra in enumerate(documentos_extras):
+            logger.info(
+                "%s [INICIAL-STEP5] Upload anexo[%d]: tipo=%s desc=%s",
+                tag, idx, doc_extra.get("tipo_documento", ""), doc_extra.get("descricao", "")[:50],
+            )
+            # Clicar "Adicionar" na seção Anexos
+            await page.evaluate(
+                """() => {
+                    const links = document.querySelectorAll('a');
+                    for (const a of links) {
+                        if (a.textContent.trim().toLowerCase() === 'adicionar') {
+                            a.click();
+                            return true;
+                        }
+                    }
+                    return false;
+                }"""
+            )
+            await asyncio.sleep(2)
+
+            # Salvar PDF extra em arquivo temporário
+            extra_pdf_bytes = base64.b64decode(doc_extra["pdf_base64"])
+            extra_fd, extra_path = tempfile.mkstemp(suffix=".pdf", prefix="pje_anexo_")
+            os.write(extra_fd, extra_pdf_bytes)
+            os.close(extra_fd)
+
+            try:
+                # Preencher tipo e descrição do anexo se possível
+                extra_desc = doc_extra.get("descricao", "")
+                extra_tipo = doc_extra.get("tipo_documento", "")
+
+                # Upload do anexo
+                upload_ok = await _upload_pdf(page, extra_path, tag)
+                if not upload_ok:
+                    logger.warning("%s [INICIAL-STEP5] Upload anexo[%d] falhou", tag, idx)
+
+                await asyncio.sleep(3)
+            finally:
+                try:
+                    os.unlink(extra_path)
+                except Exception:
+                    pass
+
+    # Clicar "Assinar documento(s)" — reutiliza fluxo existente
+    logger.info("%s [INICIAL-STEP5] Assinando documentos...", tag)
+
+    protocolo = await _assinar_e_enviar(
+        page, private_key, certchain_b64, tag,
+        pdf_bytes=pdf_bytes,
+        cert_der_b64=cert_der_b64,
+    )
+
+    s = await _screenshot(page, "ini_05b_assinado", tag)
+    if s:
+        screenshots.append(s)
+
+    if not protocolo:
+        # Verificar se assinatura completou (o form reseta após assinar na petição inicial)
+        body_text = await page.inner_text("body")
+        if "assinado" in body_text.lower() and "sucesso" in body_text.lower():
+            logger.info("%s [INICIAL-STEP5] Documentos assinados com sucesso (sem protocolo ainda)", tag)
+        else:
+            logger.warning("%s [INICIAL-STEP5] Assinatura pode ter falhado. Texto: %s", tag, body_text[:2000])
+
+    # ══════════ STEP 6: Tab Protocolar ══════════
+    logger.info("%s [INICIAL-STEP6] Navegando para tab=protocolar...", tag)
+    await page.goto(f"{update_base}&tab=protocolar", wait_until="domcontentloaded", timeout=30_000)
+    await asyncio.sleep(3)
+
+    s = await _screenshot(page, "ini_06a_protocolar", tag)
+    if s:
+        screenshots.append(s)
+
+    # Clicar botão "Protocolar"
+    logger.info("%s [INICIAL-STEP6] Clicando Protocolar...", tag)
+    await page.evaluate(
+        """() => {
+            const btns = document.querySelectorAll('button, input[type="button"], input[type="submit"]');
+            for (const b of btns) {
+                const text = (b.textContent || b.value || '').trim().toLowerCase();
+                if (text === 'protocolar') {
+                    b.click();
+                    return true;
+                }
+            }
+            return false;
+        }"""
+    )
+    await asyncio.sleep(10)  # Protocolar pode demorar
+
+    s = await _screenshot(page, "ini_06b_resultado", tag)
+    if s:
+        screenshots.append(s)
+
+    # Capturar número do processo gerado
+    body_text = await page.inner_text("body")
+    body_lower = body_text.lower()
+
+    # Verificar sucesso
+    if "sucesso" in body_lower or "protocolado" in body_lower or "protocolo" in body_lower:
+        # Tentar extrair número do processo (formato CNJ: NNNNNNN-DD.AAAA.J.TT.OOOO)
+        num_match = re.search(r"(\d{7}-\d{2}\.\d{4}\.\d{1,2}\.\d{2}\.\d{4})", body_text)
+        numero_processo = num_match.group(1) if num_match else None
+
+        logger.info(
+            "%s ══════════ PETIÇÃO INICIAL PROTOCOLADA ══════════ processo=%s",
+            tag, numero_processo,
+        )
+        return PeticionamentoResult(
+            sucesso=True,
+            mensagem=f"Petição inicial protocolada com sucesso!{' Processo: ' + numero_processo if numero_processo else ''}",
+            numero_protocolo=numero_processo,
+            screenshots=screenshots,
+        )
+    else:
+        logger.warning(
+            "%s [INICIAL-STEP6] Protocolo não confirmado. Texto: %s",
+            tag, body_text[:3000],
+        )
+        return PeticionamentoResult(
+            sucesso=False,
+            mensagem=f"Protocolo não confirmado. Verificar screenshots. Texto: {body_text[:500]}",
+            screenshots=screenshots,
+        )
+
+
+async def _adicionar_parte_pessoa_fisica(page: "Page", cpf: str, nome: str, tag: str):
+    """Adicionar parte Pessoa Física por CPF no modal de pré-cadastro.
+
+    Fluxo: Selecionar Física → Digitar CPF → Pesquisar → Auto-preenche nome → Confirmar → Vincular.
+    """
+    logger.info("%s [PARTE-PF] CPF=%s nome=%s", tag, cpf, nome[:50] if nome else "")
+
+    # Selecionar Tipo de pessoa = Física (radio value='F')
+    await page.evaluate(
+        """() => {
+            const radio = document.querySelector('[id*="tipoPessoa:0"]');
+            if (radio) { radio.click(); }
+        }"""
+    )
+    await asyncio.sleep(1)
+
+    # O formulário PF tem campo CPF — preencher
+    if cpf:
+        # Preencher CPF (formatar com pontuação)
+        cpf_fmt = f"{cpf[:3]}.{cpf[3:6]}.{cpf[6:9]}-{cpf[9:11]}" if len(cpf) == 11 else cpf
+        await page.evaluate(
+            """(cpf) => {
+                // Buscar campo CPF por placeholder, label ou id
+                const inputs = document.querySelectorAll('input[type="text"]');
+                for (const inp of inputs) {
+                    const id = (inp.id || '').toLowerCase();
+                    const ph = (inp.placeholder || '').toLowerCase();
+                    if (id.includes('cpf') || ph.includes('cpf') || id.includes('numerodocumento')) {
+                        inp.value = cpf;
+                        inp.dispatchEvent(new Event('change', {bubbles: true}));
+                        inp.dispatchEvent(new Event('blur', {bubbles: true}));
+                        return;
+                    }
+                }
+            }""",
+            cpf_fmt,
+        )
+        await asyncio.sleep(0.5)
+
+        # Clicar Pesquisar
+        await page.evaluate(
+            """() => {
+                const btns = document.querySelectorAll('button, input[type="submit"]');
+                for (const b of btns) {
+                    const text = (b.textContent || b.value || '').trim().toLowerCase();
+                    if (text.includes('pesquisar')) {
+                        b.click();
+                        return;
+                    }
+                }
+            }"""
+        )
+        await asyncio.sleep(3)  # Aguardar A4J — PJe busca o CPF e auto-preenche nome
+
+    # Clicar Confirmar
+    await page.evaluate(
+        """() => {
+            const btns = document.querySelectorAll('button, input[type="submit"], input[type="button"]');
+            for (const b of btns) {
+                const text = (b.textContent || b.value || '').trim().toLowerCase();
+                if (text.includes('confirmar')) { b.click(); return; }
+            }
+        }"""
+    )
+    await asyncio.sleep(2)
+
+    # 2º Passo: Complementação — Vincular parte ao processo
+    await page.evaluate(
+        """() => {
+            const btns = document.querySelectorAll('button, input[type="submit"], input[type="button"]');
+            for (const b of btns) {
+                const text = (b.textContent || b.value || '').trim().toLowerCase();
+                if (text.includes('vincular parte')) { b.click(); return; }
+            }
+        }"""
+    )
+    await asyncio.sleep(2)
+
+    logger.info("%s [PARTE-PF] ✓ Parte PF adicionada: CPF=%s", tag, cpf)
+
+
+async def _adicionar_parte_pessoa_juridica(
+    page: "Page", cnpj: str, nome: str, tag: str,
+    orgao_publico: Optional[bool] = None,
+):
+    """Adicionar parte Pessoa Jurídica no modal de pré-cadastro.
+
+    Dois fluxos conforme Órgão Público:
+      - Sim (default PJe): Campo Nome → Pesquisar → tabela resultados → radio → Inserir
+      - Não: Campo CNPJ → Pesquisar → auto-preenche Nome → CONFIRMAR → Vincular
+    Se orgao_publico=None, decide pelo CNPJ: se tem CNPJ usa Não, senão Sim.
+    """
+    # Decidir fluxo: Se orgao_publico não fornecido, inferir
+    if orgao_publico is None:
+        orgao_publico = not bool(cnpj)  # Se tem CNPJ → Não é órgão público
+
+    logger.info(
+        "%s [PARTE-PJ] CNPJ=%s nome=%s orgaoPublico=%s",
+        tag, cnpj, nome[:50] if nome else "", orgao_publico,
+    )
+
+    # Selecionar Tipo de pessoa = Jurídica (radio value='J') — já é padrão, mas garantir
+    await page.evaluate(
+        """() => {
+            const radio = document.querySelector('[id*="tipoPessoa:1"]');
+            if (radio) { radio.click(); }
+        }"""
+    )
+    await asyncio.sleep(0.5)
+
+    if orgao_publico:
+        # ── Fluxo Órgão Público = SIM ──
+        # Sim já é padrão no PJe, mas garantir
+        await page.evaluate(
+            """() => {
+                const radio = document.querySelector('[id*="isOrgaoPublico1SelectOneRadio:0"]');
+                if (radio) { radio.click(); }
+            }"""
+        )
+        await asyncio.sleep(1)
+
+        # Preencher campo Nome e pesquisar
+        search_text = nome or ""
+        if search_text:
+            await page.evaluate(
+                """(texto) => {
+                    const field = document.querySelector(
+                        '[id*="preCadastroPessoaFisica_nomePJ"]'
+                    );
+                    if (field) {
+                        field.value = texto;
+                        field.dispatchEvent(new Event('change', {bubbles: true}));
+                    }
+                }""",
+                search_text,
+            )
+            await asyncio.sleep(0.5)
+
+            # Clicar Pesquisar
+            await page.evaluate(
+                """() => {
+                    const btns = document.querySelectorAll('button, input[type="submit"]');
+                    for (const b of btns) {
+                        const text = (b.textContent || b.value || '').trim().toLowerCase();
+                        if (text.includes('pesquisar')) { b.click(); return; }
+                    }
+                }"""
+            )
+            await asyncio.sleep(3)  # Aguardar A4J — tabela de resultados
+
+            # Selecionar primeira linha da tabela de resultados (radio/link)
+            await page.evaluate(
+                """() => {
+                    // Tabela orgaoPublicoList — clicar no link/radio da primeira linha
+                    const link = document.querySelector('[id*="orgaoPublicoList:0"] a, [id*="orgaoPublicoList:0"] input[type="radio"]');
+                    if (link) { link.click(); return; }
+                    // Fallback: clicar no primeiro radio na tabela
+                    const radios = document.querySelectorAll('table input[type="radio"]');
+                    if (radios.length > 0) { radios[0].click(); }
+                }"""
+            )
+            await asyncio.sleep(2)
+
+        # Clicar Inserir (fluxo Órgão Público=Sim usa "Inserir", não "Confirmar")
+        await page.evaluate(
+            """() => {
+                const btns = document.querySelectorAll('button, input[type="submit"], input[type="button"]');
+                for (const b of btns) {
+                    const text = (b.textContent || b.value || '').trim().toLowerCase();
+                    if (text.includes('inserir')) { b.click(); return; }
+                }
+            }"""
+        )
+        await asyncio.sleep(2)
+
+        logger.info("%s [PARTE-PJ] ✓ Parte PJ (Órgão Público=Sim) adicionada: nome=%s", tag, nome[:50])
+
+    else:
+        # ── Fluxo Órgão Público = NÃO (CNPJ) ──
+        await page.evaluate(
+            """() => {
+                const radio = document.querySelector('[id*="isOrgaoPublico1SelectOneRadio:1"]');
+                if (radio) { radio.click(); }
+            }"""
+        )
+        await asyncio.sleep(1)
+
+        if cnpj:
+            # Formatar CNPJ
+            cnpj_fmt = f"{cnpj[:2]}.{cnpj[2:5]}.{cnpj[5:8]}/{cnpj[8:12]}-{cnpj[12:14]}" if len(cnpj) == 14 else cnpj
+
+            # Preencher campo CNPJ
+            await page.evaluate(
+                """(cnpj) => {
+                    const inputs = document.querySelectorAll('input[type="text"]');
+                    for (const inp of inputs) {
+                        const id = (inp.id || '').toLowerCase();
+                        if (id.includes('cnpj')) {
+                            inp.value = cnpj;
+                            inp.dispatchEvent(new Event('change', {bubbles: true}));
+                            inp.dispatchEvent(new Event('blur', {bubbles: true}));
+                            return;
+                        }
+                    }
+                }""",
+                cnpj_fmt,
+            )
+            await asyncio.sleep(0.5)
+
+            # Clicar Pesquisar
+            await page.evaluate(
+                """() => {
+                    const btns = document.querySelectorAll('button, input[type="submit"]');
+                    for (const b of btns) {
+                        const text = (b.textContent || b.value || '').trim().toLowerCase();
+                        if (text.includes('pesquisar')) { b.click(); return; }
+                    }
+                }"""
+            )
+            await asyncio.sleep(3)
+
+        # Clicar Confirmar (fluxo Não usa "Confirmar")
+        await page.evaluate(
+            """() => {
+                const btns = document.querySelectorAll('button, input[type="submit"], input[type="button"]');
+                for (const b of btns) {
+                    const text = (b.textContent || b.value || '').trim().toLowerCase();
+                    if (text.includes('confirmar')) { b.click(); return; }
+                }
+            }"""
+        )
+        await asyncio.sleep(2)
+
+        # 2º Passo: Vincular parte ao processo
+        await page.evaluate(
+            """() => {
+                const btns = document.querySelectorAll('button, input[type="submit"], input[type="button"]');
+                for (const b of btns) {
+                    const text = (b.textContent || b.value || '').trim().toLowerCase();
+                    if (text.includes('vincular parte')) { b.click(); return; }
+                }
+            }"""
+        )
+        await asyncio.sleep(2)
+
+        logger.info("%s [PARTE-PJ] ✓ Parte PJ (Órgão Público=Não) adicionada: CNPJ=%s", tag, cnpj)
+
+
+async def _adicionar_parte_ente(page: "Page", nome: str, tag: str):
+    """Adicionar parte Ente ou Autoridade via autocomplete no modal de pré-cadastro.
+
+    Fluxo: Selecionar "Ente ou autoridade" → Digitar lentamente → Selecionar sugestão → Confirmar → Vincular.
+    """
+    logger.info("%s [PARTE-ENTE] nome=%s", tag, nome[:50] if nome else "")
+
+    # Selecionar Tipo de pessoa = Ente ou autoridade (radio value='A')
+    await page.evaluate(
+        """() => {
+            const radio = document.querySelector('[id*="tipoPessoa:2"]');
+            if (radio) { radio.click(); }
+        }"""
+    )
+    await asyncio.sleep(1)
+
+    # Campo autocomplete "Ente ou autoridade"
+    field = page.locator("input[id*='pessoaAutoridadeSuggest']")
+    if await field.count() > 0:
+        # Digitar lentamente para acionar autocomplete (maxlength=50)
+        texto = nome[:50] if nome else ""
+        await field.first.press_sequentially(texto, delay=50)
+        await asyncio.sleep(2)  # Aguardar dropdown de sugestões
+
+        # Clicar na primeira sugestão
+        await page.evaluate(
+            """() => {
+                const rows = document.querySelectorAll('.rich-suggestion-list tr, .rf-su-inp tr, [class*="suggest"] tr');
+                if (rows.length > 1) { rows[1].click(); return true; }
+                // Tentar segunda abordagem
+                const items = document.querySelectorAll('.rf-su-itm, .rich-sb-cell-padding');
+                if (items.length > 0) { items[0].click(); return true; }
+                return false;
+            }"""
+        )
+        await asyncio.sleep(1)
+    else:
+        logger.warning("%s [PARTE-ENTE] Campo autocomplete não encontrado", tag)
+
+    # Clicar Confirmar
+    await page.evaluate(
+        """() => {
+            const btns = document.querySelectorAll('button, input[type="submit"], input[type="button"]');
+            for (const b of btns) {
+                const text = (b.textContent || b.value || '').trim().toLowerCase();
+                if (text.includes('confirmar')) { b.click(); return; }
+            }
+        }"""
+    )
+    await asyncio.sleep(2)
+
+    # 2º Passo: Vincular parte ao processo
+    await page.evaluate(
+        """() => {
+            const btns = document.querySelectorAll('button, input[type="submit"], input[type="button"]');
+            for (const b of btns) {
+                const text = (b.textContent || b.value || '').trim().toLowerCase();
+                if (text.includes('vincular parte')) { b.click(); return; }
+            }
+        }"""
+    )
+    await asyncio.sleep(2)
+
+    logger.info("%s [PARTE-ENTE] ✓ Ente/autoridade adicionado: %s", tag, nome[:50] if nome else "")
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -1415,21 +2455,29 @@ async def _upload_pdf(page: Page, pdf_path: str, tag: str) -> bool:
 
     # 1. Encontrar e preparar o input[type=file] do RichFaces
     #    ID real: uploadDocumentoPrincipalDecoration:uploadDocumentoPrincipal:file
-    file_input_info = await page.evaluate(
-        """() => {
-            const inputs = document.querySelectorAll('input[type="file"]');
-            const result = [];
-            inputs.forEach(i => {
-                result.push({
-                    id: i.id,
-                    name: i.name,
-                    className: i.className,
-                    display: getComputedStyle(i).display,
+    #    Retry loop: o A4J pode ainda estar renderizando o componente
+    file_input_info = []
+    for _retry in range(4):  # até 20s de espera total
+        file_input_info = await page.evaluate(
+            """() => {
+                const inputs = document.querySelectorAll('input[type="file"]');
+                const result = [];
+                inputs.forEach(i => {
+                    result.push({
+                        id: i.id,
+                        name: i.name,
+                        className: i.className,
+                        display: getComputedStyle(i).display,
+                    });
                 });
-            });
-            return result;
-        }"""
-    )
+                return result;
+            }"""
+        )
+        if file_input_info:
+            break
+        logger.warning("%s Nenhum input[type=file] ainda — retry %d/4...", tag, _retry + 1)
+        await asyncio.sleep(5)
+
     logger.info("%s Inputs type=file encontrados: %s", tag, file_input_info)
 
     # Tornar o input visível para Playwright poder interagir

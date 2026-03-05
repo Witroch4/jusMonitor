@@ -64,17 +64,17 @@ MATERIAS = [
 # ──────────────────────────────────────────────────────────────────
 
 JURISDICOES = {
-    "trf1": [
-        {"value": "0",  "text": "Núcleos de Justiça 4.0"},
-        {"value": "1",  "text": "Seção Judiciária da Bahia"},
-        {"value": "2",  "text": "Seção Judiciária de Goiás"},
-        {"value": "3",  "text": "Seção Judiciária de Mato Grosso"},
-        {"value": "4",  "text": "Seção Judiciária de Rondônia"},
-        {"value": "5",  "text": "Seção Judiciária de Roraima"},
-        {"value": "6",  "text": "Seção Judiciária do Acre"},
-        {"value": "7",  "text": "Seção Judiciária do Amapá"},
-        {"value": "8",  "text": "Seção Judiciária do Amazonas"},
-        {"value": "9",  "text": "Seção Judiciária do Distrito Federal"},
+                                                                                                "trf1": [
+        {"value": "0", "text": "Núcleos de Justiça 4.0"},
+        {"value": "1", "text": "Seção Judiciária da Bahia"},
+        {"value": "2", "text": "Seção Judiciária de Goiás"},
+        {"value": "3", "text": "Seção Judiciária de Mato Grosso"},
+        {"value": "4", "text": "Seção Judiciária de Rondônia"},
+        {"value": "5", "text": "Seção Judiciária de Roraima"},
+        {"value": "6", "text": "Seção Judiciária do Acre"},
+        {"value": "7", "text": "Seção Judiciária do Amapá"},
+        {"value": "8", "text": "Seção Judiciária do Amazonas"},
+        {"value": "9", "text": "Seção Judiciária do Distrito Federal"},
         {"value": "10", "text": "Seção Judiciária do Maranhão"},
         {"value": "11", "text": "Seção Judiciária do Pará"},
         {"value": "12", "text": "Seção Judiciária do Piauí"},

@@ -127,6 +127,7 @@ export interface Peticao {
   status: PeticaoStatus
   documentos: PeticaoDocumento[]
   certificadoId?: string
+  dadosBasicos?: DadosBasicos
   analiseIA?: AnaliseIA
   protocoladoEm?: string
   protocoloRecibo?: string

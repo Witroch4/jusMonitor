@@ -216,10 +216,11 @@ async def update_peticao(
         return PeticaoResponse.model_validate(pet)
 
     # Serialize dados_basicos Pydantic model to JSON dict for JSONB column
+    # Use by_alias=True so camelCase keys are stored in JSONB (frontend-readable)
     if "dados_basicos" in update_data and update_data["dados_basicos"] is not None:
-        update_data["dados_basicos_json"] = update_data.pop("dados_basicos")
-        if hasattr(update_data["dados_basicos_json"], "model_dump"):
-            update_data["dados_basicos_json"] = update_data["dados_basicos_json"].model_dump(mode="json")
+        update_data.pop("dados_basicos")
+        if data.dados_basicos is not None:
+            update_data["dados_basicos_json"] = data.dados_basicos.model_dump(mode="json", by_alias=True)
     elif "dados_basicos" in update_data:
         update_data.pop("dados_basicos")
 

@@ -79,15 +79,20 @@ async def lifespan(app: FastAPI):
 
     yield
     
-    # Shutdown
+    # Shutdown — these run both via signal handler callbacks AND here (lifespan post-yield).
+    # The try/except blocks handle the case where resources were already cleaned up by the
+    # signal handler's shutdown callbacks, avoiding double-cleanup errors.
     logger.info("application_shutdown_initiated")
     
     # Shutdown Taskiq broker gracefully
     if not broker.is_worker_process:
         try:
-            logger.info("shutting_down_taskiq_broker")
-            await broker.shutdown()
-            logger.info("taskiq_broker_shutdown_complete")
+            if not shutdown_handler.is_shutting_down:
+                logger.info("shutting_down_taskiq_broker")
+                await broker.shutdown()
+                logger.info("taskiq_broker_shutdown_complete")
+            else:
+                logger.info("taskiq_broker_already_shutdown_by_signal_handler")
         except Exception as e:
             logger.error(
                 "taskiq_broker_shutdown_error",
@@ -97,9 +102,12 @@ async def lifespan(app: FastAPI):
     
     # Close database connections
     try:
-        logger.info("closing_database_connections")
-        await close_db()
-        logger.info("database_connections_closed")
+        if not shutdown_handler.is_shutting_down:
+            logger.info("closing_database_connections")
+            await close_db()
+            logger.info("database_connections_closed")
+        else:
+            logger.info("database_already_closed_by_signal_handler")
     except Exception as e:
         logger.error(
             "database_close_error",

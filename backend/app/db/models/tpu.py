@@ -1,6 +1,9 @@
 """Database models for processual unified tables (TPU) from CNJ."""
 
-from sqlalchemy import Integer, String, Text, ForeignKey
+from datetime import datetime
+
+from sqlalchemy import DateTime, Integer, String, Text, ForeignKey, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
@@ -133,3 +136,79 @@ class TpuDocumento(Base, TimestampMixin):
 
     def __repr__(self) -> str:
         return f"<TpuDocumento(codigo={self.codigo}, nome={self.nome})>"
+
+
+class PjeJurisdicao(Base, TimestampMixin):
+    """Jurisdições (Comarcas/Seções) por tribunal PJe, organizadas por Matéria.
+
+    Coletadas automaticamente pelo scraper via cascade JSF:
+    Matéria → Jurisdição → Classes Judiciais.
+
+    Chave única: (tribunal, materia_value, jurisdicao_value)
+    Atualizada incrementalmente — só recoleta combos não existentes.
+    """
+
+    __tablename__ = "pje_jurisdicoes"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tribunal", "materia_value", "jurisdicao_value",
+            name="uq_pje_jurisdicoes_tribunal_materia_jurisdicao",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True,
+    )
+
+    tribunal: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        index=True,
+        comment="Código do tribunal: trf1, trf3, trf5, trf6, tjce …",
+    )
+
+    materia_value: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        comment="Valor numérico da Matéria (TPU CNJ)",
+    )
+
+    materia_text: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment="Texto descritivo da Matéria",
+    )
+
+    jurisdicao_value: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        comment="Valor numérico da Jurisdição no PJe deste tribunal",
+    )
+
+    jurisdicao_text: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment="Nome da Seção/Subseção judiciária",
+    )
+
+    classes: Mapped[list | None] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="Classes judiciais disponíveis: [{value, text}, …]",
+    )
+
+    coletado_em: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Quando este combo foi coletado pelo scraper",
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<PjeJurisdicao(tribunal={self.tribunal!r}, "
+            f"materia={self.materia_value!r}, "
+            f"jurisdicao={self.jurisdicao_text!r})>"
+        )

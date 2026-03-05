@@ -34,7 +34,7 @@ from app.db.models.peticao import (
     TipoDocumento,
     TipoPeticao,
 )
-from app.db.models.tpu import TpuClasse, TpuAssunto, TpuDocumento
+from app.db.models.tpu import TpuClasse, TpuAssunto, TpuDocumento, PjeJurisdicao
 from app.db.models.processo_monitorado import ProcessoMonitorado
 from app.db.models.user_integration import UserIntegration, IntegrationType
 from app.db.models.caso_oab import CasoOAB
@@ -79,6 +79,7 @@ __all__ = [
     "DocumentoStatus",
     "TpuClasse",
     "TpuAssunto",
+    "PjeJurisdicao",
     "ProcessoMonitorado",
     "UserIntegration",
     "IntegrationType",

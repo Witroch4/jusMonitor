@@ -89,10 +89,42 @@ function defaultPolos(): Polo[] {
   ]
 }
 
-function formatCpf(cpf: string): string {
-  const d = cpf.replace(/\D/g, '')
-  if (d.length === 11) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`
-  return cpf
+function formatCpf(value: string): string {
+  let d = value.replace(/\D/g, '')
+  if (d.length > 11) d = d.slice(0, 11)
+
+  if (d.length <= 3) return d
+  if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`
+  if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`
+}
+
+function isValidCpf(cpf: string): boolean {
+  if (!cpf) return false
+  const strCPF = cpf.replace(/[^\d]/g, '')
+  if (strCPF.length !== 11) return false
+
+  if (/^(\d)\1{10}$/.test(strCPF)) return false
+
+  let soma = 0
+  let resto
+
+  for (let i = 1; i <= 9; i++) {
+    soma = soma + parseInt(strCPF.substring(i - 1, i)) * (11 - i)
+  }
+  resto = (soma * 10) % 11
+  if (resto === 10 || resto === 11) resto = 0
+  if (resto !== parseInt(strCPF.substring(9, 10))) return false
+
+  soma = 0
+  for (let i = 1; i <= 10; i++) {
+    soma = soma + parseInt(strCPF.substring(i - 1, i)) * (12 - i)
+  }
+  resto = (soma * 10) % 11
+  if (resto === 10 || resto === 11) resto = 0
+  if (resto !== parseInt(strCPF.substring(10, 11))) return false
+
+  return true
 }
 
 function formatCnpj(cnpj: string): string {
@@ -121,15 +153,15 @@ export function PeticaoFormPartes({ polos, onChange }: Props) {
   const profileCpfFormatted = profile?.cpf_formatted || (profile?.cpf ? formatCpf(profile.cpf) : undefined)
   const profileLabel = profile
     ? [
-        profile.full_name.toUpperCase(),
-        'registrado(a) civilmente como',
-        profile.full_name.toUpperCase(),
-        profileOab ? `- OAB ${profileOab}` : '',
-        profileCpfFormatted ? `- CPF: ${profileCpfFormatted}` : '',
-        '(ADVOGADO)',
-      ]
-        .filter(Boolean)
-        .join(' ')
+      profile.full_name.toUpperCase(),
+      'registrado(a) civilmente como',
+      profile.full_name.toUpperCase(),
+      profileOab ? `- OAB ${profileOab}` : '',
+      profileCpfFormatted ? `- CPF: ${profileCpfFormatted}` : '',
+      '(ADVOGADO)',
+    ]
+      .filter(Boolean)
+      .join(' ')
     : null
 
   const updatePolo = (poloIdx: number, updates: Partial<Polo>) => {
@@ -257,13 +289,12 @@ export function PeticaoFormPartes({ polos, onChange }: Props) {
           {currentPolos.map((polo, poloIdx) => (
             <div key={poloIdx} className="space-y-4">
               <div className="flex items-center gap-2 pb-2 border-b border-border">
-                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
-                  polo.polo === 'AT'
+                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${polo.polo === 'AT'
                     ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
                     : polo.polo === 'PA'
-                    ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400'
-                    : 'bg-gray-500/10 text-gray-600 dark:text-gray-400'
-                }`}>
+                      ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400'
+                      : 'bg-gray-500/10 text-gray-600 dark:text-gray-400'
+                  }`}>
                   {POLO_LABELS[polo.polo] || polo.polo}
                 </span>
               </div>
@@ -381,9 +412,8 @@ export function PeticaoFormPartes({ polos, onChange }: Props) {
                                 value={parte.cnpj || ''}
                                 onChange={(e) => handleCnpjChange(poloIdx, parteIdx, e.target.value)}
                                 placeholder="00.000.000/0001-00"
-                                className={`h-9 text-sm font-mono pr-8 ${
-                                  cnpjState?.error ? 'border-destructive focus-visible:ring-destructive/30' : ''
-                                }`}
+                                className={`h-9 text-sm font-mono pr-8 ${cnpjState?.error ? 'border-destructive focus-visible:ring-destructive/30' : ''
+                                  }`}
                                 maxLength={18}
                               />
                               {cnpjState?.loading && (
@@ -415,14 +445,34 @@ export function PeticaoFormPartes({ polos, onChange }: Props) {
                         <>
                           <div>
                             <Label className="text-xs mb-1 block">CPF</Label>
-                            {!parte.semCpf && (
-                              <Input
-                                value={parte.cpf || ''}
-                                onChange={(e) => updateParte(poloIdx, parteIdx, { cpf: e.target.value })}
-                                placeholder="000.000.000-00"
-                                className="h-9 text-sm font-mono"
-                              />
-                            )}
+                            {!parte.semCpf && (() => {
+                              const cpfValido = isValidCpf(parte.cpf || '')
+                              const digits = (parte.cpf || '').replace(/\D/g, '').length
+                              const hasError = digits === 11 && !cpfValido
+
+                              return (
+                                <>
+                                  <div className="relative">
+                                    <Input
+                                      value={parte.cpf || ''}
+                                      onChange={(e) => updateParte(poloIdx, parteIdx, { cpf: formatCpf(e.target.value) })}
+                                      placeholder="000.000.000-00"
+                                      maxLength={14}
+                                      className={`h-9 text-sm font-mono pr-8 ${hasError ? 'border-destructive focus-visible:ring-destructive/30' : ''}`}
+                                    />
+                                    {cpfValido && (
+                                      <CheckCircle2 className="absolute right-2.5 top-2.5 h-4 w-4 text-emerald-500" />
+                                    )}
+                                    {hasError && (
+                                      <AlertCircle className="absolute right-2.5 top-2.5 h-4 w-4 text-destructive" />
+                                    )}
+                                  </div>
+                                  {hasError && (
+                                    <p className="text-[11px] text-destructive mt-1">CPF inválido</p>
+                                  )}
+                                </>
+                              )
+                            })()}
                             <label className="flex items-center gap-2 cursor-pointer mt-1.5">
                               <Checkbox
                                 checked={!!parte.semCpf}
@@ -520,16 +570,14 @@ export function PeticaoFormPartes({ polos, onChange }: Props) {
                           <button
                             type="button"
                             onClick={() => updateAdvogado(poloIdx, advIdx, { intimacao: !adv.intimacao })}
-                            className={`mt-2 flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium w-fit transition-colors ${
-                              adv.intimacao
+                            className={`mt-2 flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium w-fit transition-colors ${adv.intimacao
                                 ? 'border-primary/60 bg-primary/8 text-primary'
                                 : 'border-border bg-transparent text-muted-foreground hover:border-primary/30'
-                            }`}
+                              }`}
                           >
                             <span
-                              className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
-                                adv.intimacao ? 'border-primary bg-primary' : 'border-muted-foreground'
-                              }`}
+                              className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${adv.intimacao ? 'border-primary bg-primary' : 'border-muted-foreground'
+                                }`}
                             >
                               {adv.intimacao && (
                                 <span className="material-symbols-outlined text-[11px] text-primary-foreground leading-none">
@@ -578,27 +626,47 @@ export function PeticaoFormPartes({ polos, onChange }: Props) {
                           </div>
                           <div>
                             <Label className="text-xs mb-1 block">CPF</Label>
-                            <Input
-                              value={adv.cpf || ''}
-                              onChange={(e) => updateAdvogado(poloIdx, advIdx, { cpf: e.target.value })}
-                              placeholder="000.000.000-00"
-                              className="h-9 text-sm font-mono"
-                            />
+                            {(() => {
+                              const cpfValido = isValidCpf(adv.cpf || '')
+                              const digits = (adv.cpf || '').replace(/\D/g, '').length
+                              const hasError = digits === 11 && !cpfValido
+
+                              return (
+                                <>
+                                  <div className="relative">
+                                    <Input
+                                      value={adv.cpf || ''}
+                                      onChange={(e) => updateAdvogado(poloIdx, advIdx, { cpf: formatCpf(e.target.value) })}
+                                      placeholder="000.000.000-00"
+                                      maxLength={14}
+                                      className={`h-9 text-sm font-mono pr-8 ${hasError ? 'border-destructive focus-visible:ring-destructive/30' : ''}`}
+                                    />
+                                    {cpfValido && (
+                                      <CheckCircle2 className="absolute right-2.5 top-2.5 h-4 w-4 text-emerald-500" />
+                                    )}
+                                    {hasError && (
+                                      <AlertCircle className="absolute right-2.5 top-2.5 h-4 w-4 text-destructive" />
+                                    )}
+                                  </div>
+                                  {hasError && (
+                                    <p className="text-[11px] text-destructive mt-1">CPF inválido</p>
+                                  )}
+                                </>
+                              )
+                            })()}
                           </div>
                         </div>
                         <button
                           type="button"
                           onClick={() => updateAdvogado(poloIdx, advIdx, { intimacao: !adv.intimacao })}
-                          className={`ml-0 mt-1 flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium w-fit transition-colors ${
-                            adv.intimacao
+                          className={`ml-0 mt-1 flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium w-fit transition-colors ${adv.intimacao
                               ? 'border-primary/60 bg-primary/8 text-primary'
                               : 'border-border bg-transparent text-muted-foreground hover:border-primary/30'
-                          }`}
+                            }`}
                         >
                           <span
-                            className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
-                              adv.intimacao ? 'border-primary bg-primary' : 'border-muted-foreground'
-                            }`}
+                            className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${adv.intimacao ? 'border-primary bg-primary' : 'border-muted-foreground'
+                              }`}
                           >
                             {adv.intimacao && (
                               <span className="material-symbols-outlined text-[11px] text-primary-foreground leading-none">

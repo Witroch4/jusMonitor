@@ -5,7 +5,7 @@ from uuid import UUID
 
 from app.core.services.chatwit_client import ChatwitService
 from app.core.services.crm.funnel_automations import FunnelAutomations
-from app.db.engine import get_db
+from app.db.engine import get_session_ctx
 from app.workers.broker import broker
 from app.workers.tasks.base import BaseTask
 
@@ -45,7 +45,7 @@ async def process_new_lead_automations(
         },
     )
     
-    async with get_db() as session:
+    async with get_session_ctx() as session:
         # Initialize Chatwit service if API key provided
         chatwit_service = None
         if chatwit_api_key:
@@ -121,7 +121,7 @@ async def process_score_update_automations(
         },
     )
     
-    async with get_db() as session:
+    async with get_session_ctx() as session:
         automations = FunnelAutomations(
             session=session,
             tenant_id=UUID(tenant_id),
@@ -189,7 +189,7 @@ async def send_follow_up_reminder(
         },
     )
     
-    async with get_db() as session:
+    async with get_session_ctx() as session:
         from app.db.repositories.lead import LeadRepository
         
         repo = LeadRepository(session, UUID(tenant_id))

@@ -1,6 +1,7 @@
 """Graceful shutdown handler for FastAPI application."""
 
 import asyncio
+import os
 import signal
 import sys
 from typing import Callable, Optional
@@ -110,11 +111,13 @@ class GracefulShutdown:
             )
             self.shutdown_event.set()
         finally:
-            # CRITICAL: exit the process so Docker/supervisor can restart it.
-            # Without this, the process stays alive permanently rejecting all
-            # requests with 503 after a SIGTERM/SIGINT is received.
+            # Stop the event loop cleanly — this lets uvicorn's ASGI lifespan
+            # run the post-yield cleanup (broker.shutdown, close_db) and exit
+            # normally. Using sys.exit(0) here raised SystemExit inside an
+            # asyncio task, causing cascading tracebacks and resource leaks.
             logger.info("process_exit_after_shutdown")
-            sys.exit(0)
+            loop = asyncio.get_event_loop()
+            loop.call_soon(loop.stop)
 
     async def _wait_for_requests(self) -> None:
         """Wait for in-flight requests to complete."""

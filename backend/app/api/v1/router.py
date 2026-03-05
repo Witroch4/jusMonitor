@@ -9,6 +9,7 @@ from app.api.v1.endpoints import (
     dashboard,
     leads,
     peticoes,
+    pje,
     processos,
     storage,
     webhooks,
@@ -26,6 +27,7 @@ api_router.include_router(webhooks.router)
 api_router.include_router(certificados.router)
 api_router.include_router(peticoes.router)
 api_router.include_router(processos.router)
+api_router.include_router(pje.router)
 api_router.include_router(storage.router)
 
 __all__ = ["api_router"]

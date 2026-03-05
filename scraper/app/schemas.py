@@ -116,19 +116,31 @@ class BaixarDocumentoResponse(BaseModel):
 
 # ── Peticionamento via Playwright (RPA) ──
 
+class DocumentoExtra(BaseModel):
+    """Um documento extra (anexo) para upload junto com a petição principal."""
+    pdf_base64: str = Field(..., description="PDF do documento em base64")
+    tipo_documento: str = Field(default="Anexo", description="Tipo do documento no PJe (label do select)")
+    descricao: str = Field(default="", description="Descrição do documento")
+    sigiloso: bool = Field(default=False, description="Se o documento é sigiloso")
+
+
 class ProtocolarPeticaoRequest(BaseModel):
     """Request para protocolar petição via Playwright (RPA)."""
     tribunal: str | None = Field(default=None, min_length=2, max_length=20, description="Código do tribunal (ex: trf1). Se omitido, será inferido automaticamente do número CNJ do processo.")
-    numero_processo: str = Field(..., description="Número formatado do processo")
+    numero_processo: str = Field(..., description="Número formatado do processo (ou vazio para petição inicial)")
     pfx_base64: str = Field(..., description="Certificado A1 (PFX) em base64")
     pfx_password: str = Field(..., description="Senha do certificado PFX")
-    pdf_base64: str = Field(..., description="PDF da petição em base64")
+    pdf_base64: str = Field(..., description="PDF da petição principal em base64")
     tipo_documento: str = Field(default="Petição", description="Tipo do documento no PJe")
     descricao: str = Field(default="", description="Descrição do documento")
     totp_secret: str | None = Field(default=None, description="Segredo TOTP base32 para 2FA do SSO PJe")
     totp_algorithm: str | None = Field(default=None, description="Algoritmo TOTP (SHA1, SHA256, SHA512)")
     totp_digits: int | None = Field(default=None, description="Número de dígitos TOTP (6 ou 8)")
     totp_period: int | None = Field(default=None, description="Período TOTP em segundos (30 ou 60)")
+    # Novos campos para petição inicial
+    tipo_peticao: str | None = Field(default=None, description="Tipo da petição: peticao_inicial, contestacao, etc. Se peticao_inicial, usa fluxo de cadastro novo processo.")
+    dados_basicos: dict | None = Field(default=None, description="DadosBasicos completo: {polos, assuntos, classeProcessual, codigoLocalidade, valorCausa, prioridade, etc.}")
+    documentos_extras: list[DocumentoExtra] | None = Field(default=None, description="Lista de documentos extras (anexos) para upload")
 
 
 class ProtocolarPeticaoResponse(BaseModel):

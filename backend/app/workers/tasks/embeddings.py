@@ -10,7 +10,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.db.engine import get_session
+from app.db.engine import get_session_ctx
 from app.db.models.case_movement import CaseMovement
 from app.db.models.timeline_embedding import TimelineEmbedding
 from app.db.models.timeline_event import TimelineEvent
@@ -109,7 +109,7 @@ async def generate_case_movement_embeddings(
         movement_count=len(movement_ids),
     )
     
-    async with get_session() as session:
+    async with get_session_ctx() as session:
         # Fetch movements
         stmt = select(CaseMovement).where(
             CaseMovement.tenant_id == tenant_uuid,
@@ -177,7 +177,7 @@ async def generate_timeline_event_embeddings(
         event_count=len(event_ids),
     )
     
-    async with get_session() as session:
+    async with get_session_ctx() as session:
         # Fetch events that don't have embeddings yet
         stmt = (
             select(TimelineEvent)
@@ -259,7 +259,7 @@ async def batch_generate_embeddings_for_tenant(
         entity_type=entity_type,
     )
     
-    async with get_session() as session:
+    async with get_session_ctx() as session:
         if entity_type == "movement":
             # Get movements without embeddings
             stmt = select(CaseMovement.id).where(

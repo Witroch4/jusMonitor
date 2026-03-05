@@ -1,10 +1,14 @@
 """JusMonitorIA Scraper — isolated web scraping microservice."""
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from functools import partial
+from pathlib import Path
+from typing import Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
+from pydantic import BaseModel
 
 from app.schemas import (
     ConsultarOABRequest, ConsultarOABResponse,
@@ -21,6 +25,8 @@ from app.scrapers.pje_generic import (
     PJE_TRIBUNALS,
 )
 from app.browser_pool import browser_pool
+from app.config import settings
+from app.scrapers.coletar_comarcas import main_coletar, OUTPUT_JSON, ColetaComarcasResult
 
 
 class _HealthCheckFilter(logging.Filter):
@@ -42,16 +48,83 @@ logger = logging.getLogger(__name__)
 # Lifespan — start/stop browser pool
 # ──────────────────────────────────────────────────────────────────
 
+# ── Estado global do scheduler de comarcas ──────────────────────
+_comarcas_scheduler_task: Optional[asyncio.Task] = None
+_comarcas_is_running: bool = False  # Evita execuções concorrentes
+
+
+async def _scheduler_comarcas() -> None:
+    """Background task: coleta comarcas na inicialização e a cada N horas."""
+    global _comarcas_is_running
+    interval_h = settings.comarcas_refresh_interval_hours
+    if interval_h <= 0:
+        logger.info("[COMARCAS-SCHEDULER] Desabilitado (COMARCAS_REFRESH_INTERVAL_HOURS=0)")
+        return
+
+    # Aguardar o browser pool estar pronto antes do primeiro run
+    await asyncio.sleep(15)
+
+    while True:
+        if not _comarcas_is_running:
+            _comarcas_is_running = True
+            try:
+                logger.info("[COMARCAS-SCHEDULER] Iniciando coleta de comarcas...")
+                result = await main_coletar(
+                    pfx_path=settings.pje_pfx_path,
+                    pfx_password=settings.pje_pfx_password,
+                    totp_secret=settings.pje_totp_secret or None,
+                    coletar_classes=True,
+                )
+                if result.sucesso:
+                    logger.info(
+                        "[COMARCAS-SCHEDULER] ✓ Coleta OK: %d jurisdições. Próxima em %d h.",
+                        result.total_jurisdicoes, interval_h,
+                    )
+                else:
+                    logger.error(
+                        "[COMARCAS-SCHEDULER] Coleta falhou: %s. Retry em %d h.",
+                        result.erro, interval_h,
+                    )
+            except Exception as e:
+                logger.exception("[COMARCAS-SCHEDULER] Erro não tratado: %s", e)
+            finally:
+                _comarcas_is_running = False
+        else:
+            logger.info("[COMARCAS-SCHEDULER] Coleta em andamento, skip desta rodada.")
+
+        # Aguardar próxima execução
+        await asyncio.sleep(interval_h * 3600)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup: initialize browser pool. Shutdown: close it."""
+    """Startup: initialize browser pool + comarca scheduler. Shutdown: cancel tasks."""
+    global _comarcas_scheduler_task
+
     logger.info("Starting browser pool...")
     await browser_pool.initialize()
     logger.info("Browser pool ready")
+
+    # Iniciar scheduler de coleta de comarcas em background
+    _comarcas_scheduler_task = asyncio.create_task(_scheduler_comarcas())
+    logger.info(
+        "[COMARCAS-SCHEDULER] Agendado — intervalo=%d h.",
+        settings.comarcas_refresh_interval_hours,
+    )
+
     yield
+
     logger.info("Shutting down browser pool...")
     await browser_pool.shutdown()
     logger.info("Browser pool closed")
+
+    if _comarcas_scheduler_task and not _comarcas_scheduler_task.done():
+        _comarcas_scheduler_task.cancel()
+        try:
+            await _comarcas_scheduler_task
+        except asyncio.CancelledError:
+            pass
+    logger.info("[COMARCAS-SCHEDULER] Cancelado.")
 
 
 app = FastAPI(
@@ -164,6 +237,107 @@ async def scrape_baixar_documento(data: BaixarDocumentoRequest):
 # ──────────────────────────────────────────────────────────────────
 
 
+# ──────────────────────────────────────────────────────────────────
+# Comarcas / Jurisdições — coleta e consulta
+# ──────────────────────────────────────────────────────────────────
+
+
+class ColetarComarcasRequest(BaseModel):
+    """Parâmetros opcionais para acionar a coleta de comarcas manualmente."""
+    pfx_path: Optional[str] = None       # Se None, usa settings.pje_pfx_path
+    pfx_password: Optional[str] = None  # Se None, usa settings.pje_pfx_password
+    totp_secret: Optional[str] = None   # Se None, usa settings.pje_totp_secret
+    coletar_classes: bool = True         # Se True, coleta também as Classes Judiciais
+
+
+@app.post("/comarcas/coletar")
+async def coletar_comarcas(
+    data: ColetarComarcasRequest = ColetarComarcasRequest(),
+    background_tasks: BackgroundTasks = None,
+):
+    """Aciona a coleta de Jurisdições (Comarcas) e Classes Judiciais do PJe TRF1.
+
+    A coleta é feita em background (não bloqueia a resposta).
+    Use GET /comarcas/trf1 para ler os dados após a coleta.
+    """
+    global _comarcas_is_running
+
+    if _comarcas_is_running:
+        return {
+            "status": "em_andamento",
+            "mensagem": "Coleta já está em andamento. Aguarde a conclusão.",
+        }
+
+    async def _run():
+        global _comarcas_is_running
+        _comarcas_is_running = True
+        try:
+            result = await main_coletar(
+                pfx_path=data.pfx_path or settings.pje_pfx_path,
+                pfx_password=data.pfx_password or settings.pje_pfx_password,
+                totp_secret=data.totp_secret or settings.pje_totp_secret or None,
+                coletar_classes=data.coletar_classes,
+            )
+            if result.sucesso:
+                logger.info(
+                    "[POST /comarcas/coletar] ✓ %d jurisdições coletadas.",
+                    result.total_jurisdicoes,
+                )
+            else:
+                logger.error("[POST /comarcas/coletar] Falhou: %s", result.erro)
+        finally:
+            _comarcas_is_running = False
+
+    asyncio.create_task(_run())
+
+    return {
+        "status": "iniciado",
+        "mensagem": (
+            "Coleta de comarcas TRF1 iniciada em background. "
+            "Use GET /comarcas/trf1 para acompanhar o resultado após conclusão."
+        ),
+        "pfx_path": data.pfx_path or settings.pje_pfx_path,
+        "coletar_classes": data.coletar_classes,
+    }
+
+
+@app.get("/comarcas/trf1")
+async def get_comarcas_trf1():
+    """Retorna os dados de Jurisdições e Classes do TRF1 coletados em disco.
+
+    - `colhido_em`: ISO8601 da última coleta bem-sucedida
+    - `jurisdicoes`: lista de {value, text}
+    - `classes_por_jurisdicao`: dict value_jurisdicao → [{value, text}]
+    """
+    if not OUTPUT_JSON.exists():
+        return {
+            "status": "sem_dados",
+            "mensagem": (
+                "Ainda não há dados coletados. "
+                "Acione POST /comarcas/coletar para iniciar a coleta."
+            ),
+            "is_running": _comarcas_is_running,
+        }
+
+    import json
+    data = json.loads(OUTPUT_JSON.read_text(encoding="utf-8"))
+    data["status"] = "ok"
+    data["is_running"] = _comarcas_is_running
+    return data
+
+
+@app.get("/comarcas/status")
+async def get_comarcas_status():
+    """Retorna o status atual do processo de coleta de comarcas."""
+    return {
+        "is_running": _comarcas_is_running,
+        "scheduler_interval_hours": settings.comarcas_refresh_interval_hours,
+        "json_exists": OUTPUT_JSON.exists(),
+        "json_path": str(OUTPUT_JSON),
+        "json_size_bytes": OUTPUT_JSON.stat().st_size if OUTPUT_JSON.exists() else 0,
+    }
+
+
 @app.post("/scrape/protocolar-peticao", response_model=ProtocolarPeticaoResponse)
 async def scrape_protocolar_peticao(data: ProtocolarPeticaoRequest):
     """Protocolar petição via Playwright (RPA) — usado quando MNI SOAP está bloqueado.
@@ -195,6 +369,11 @@ async def scrape_protocolar_peticao(data: ProtocolarPeticaoRequest):
         tribunal, data.numero_processo, data.tipo_documento, data.descricao[:50],
     )
 
+    # Converter documentos_extras para lista de dicts
+    docs_extras = None
+    if data.documentos_extras:
+        docs_extras = [d.model_dump() for d in data.documentos_extras]
+
     result = await protocolar_peticao_pje(
         tribunal_code=tribunal,
         numero_processo=data.numero_processo,
@@ -207,6 +386,9 @@ async def scrape_protocolar_peticao(data: ProtocolarPeticaoRequest):
         totp_algorithm=data.totp_algorithm,
         totp_digits=data.totp_digits,
         totp_period=data.totp_period,
+        tipo_peticao=data.tipo_peticao,
+        dados_basicos=data.dados_basicos,
+        documentos_extras=docs_extras,
     )
 
     logger.info(

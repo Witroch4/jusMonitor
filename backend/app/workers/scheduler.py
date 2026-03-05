@@ -9,7 +9,7 @@ from croniter import croniter
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.engine import get_session
+from app.db.engine import get_session_ctx
 from app.db.models.worker_schedule import WorkerSchedule
 
 logger = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ async def trigger_task_now(task_name: str) -> None:
     logger.info("scheduler_task_manual_trigger", extra={"task_name": task_name})
 
     # Update last_run_at
-    async with await get_session() as session:
+    async with get_session_ctx() as session:
         await session.execute(
             update(WorkerSchedule)
             .where(WorkerSchedule.task_name == task_name)
@@ -75,7 +75,7 @@ async def _scheduler_loop() -> None:
 
     while True:
         try:
-            async with await get_session() as session:
+            async with get_session_ctx() as session:
                 result = await session.execute(
                     select(WorkerSchedule).where(WorkerSchedule.is_active == True)
                 )

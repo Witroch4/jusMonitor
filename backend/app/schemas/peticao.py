@@ -96,6 +96,8 @@ class DadosBasicos(BaseModel):
     assuntos: list[AssuntoProcessual] = []
     classe_processual: Optional[int] = None  # Código TPU/CNJ (ex: 120)
     classe_processual_nome: Optional[str] = None  # Nome legível da classe (ex: 'MANDADO DE SEGURANÇA CÍVEL')
+    materia_codigo: Optional[int] = None  # Código TPU/CNJ da matéria (ex: 10170)
+    materia_nome: Optional[str] = None  # Nome legível da matéria
     codigo_localidade: Optional[str] = None
     competencia: int = 0
     nivel_sigilo: int = 0
@@ -215,7 +217,7 @@ class PeticaoResponse(BaseModel):
     status: PeticaoStatus
     documentos: list[PeticaoDocumentoResponse] = []
     certificado_id: Optional[UUID] = None
-    dados_basicos: Optional[dict] = Field(None, validation_alias="dados_basicos_json")
+    dados_basicos: Optional[DadosBasicos] = Field(None, validation_alias="dados_basicos_json")
     analise_ia: Optional[dict] = None
     protocolado_em: Optional[datetime] = None
     protocolo_recibo: Optional[str] = None

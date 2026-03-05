@@ -4,7 +4,7 @@ import logging
 from uuid import UUID
 
 from app.core.services.crm.lead_scorer import LeadScorer
-from app.db.engine import get_db
+from app.db.engine import get_session_ctx
 from app.workers.broker import broker
 from app.workers.tasks.base import BaseTask
 
@@ -42,7 +42,7 @@ async def score_lead_task(
         },
     )
     
-    async with get_db() as session:
+    async with get_session_ctx() as session:
         scorer = LeadScorer(session, UUID(tenant_id))
         
         try:
@@ -97,7 +97,7 @@ async def score_all_tenant_leads_task(tenant_id: str) -> dict:
         extra={"tenant_id": tenant_id},
     )
     
-    async with get_db() as session:
+    async with get_session_ctx() as session:
         scorer = LeadScorer(session, UUID(tenant_id))
         
         try:

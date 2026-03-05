@@ -32,4 +32,4 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf 
 
 EXPOSE 8001
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--reload"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001"]

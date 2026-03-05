@@ -99,7 +99,7 @@ export function PeticaoFormDadosProcesso({ formData, onChange, dadosBasicos, onD
         setTribunalAutoDetectado(true)
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.processoNumero])
 
   // --- Process number autocomplete ---
@@ -250,13 +250,12 @@ export function PeticaoFormDadosProcesso({ formData, onChange, dadosBasicos, onD
                 }}
                 placeholder={isPeticaoInicial ? 'Será atribuído após o protocolo' : '0000000-00.0000.0.00.0000'}
                 maxLength={25}
-                className={`font-mono ${
-                  isPeticaoInicial
+                className={`font-mono ${isPeticaoInicial
                     ? 'bg-muted/50 cursor-not-allowed text-muted-foreground'
                     : formData.processoNumero && !isProcessoNumeroValido(formData.processoNumero)
-                    ? 'border-destructive focus-visible:ring-destructive'
-                    : ''
-                }`}
+                      ? 'border-destructive focus-visible:ring-destructive'
+                      : ''
+                  }`}
                 disabled={isPeticaoInicial}
                 autoComplete="off"
                 name="processo-numero"
@@ -273,14 +272,14 @@ export function PeticaoFormDadosProcesso({ formData, onChange, dadosBasicos, onD
                         e.preventDefault()
                         const detected = tribunalFromProcesso(p.numero)
                         onChange({
-                          processoNumero: p.numero,
+                          processoNumero: maskProcessoNumero(p.numero),
                           ...(detected && !formData.tribunalId ? { tribunalId: detected as TribunalId } : {}),
                         })
                         if (detected && !formData.tribunalId) setTribunalAutoDetectado(true)
                         setDropdownOpen(false)
                       }}
                     >
-                      <span className="font-mono text-sm font-medium shrink-0 text-foreground">{p.numero}</span>
+                      <span className="font-mono text-sm font-medium shrink-0 text-foreground">{maskProcessoNumero(p.numero)}</span>
                       {p.partesResumo && (
                         <span className="text-xs text-muted-foreground truncate">— {p.partesResumo}</span>
                       )}

@@ -125,6 +125,7 @@ export function useUpdatePeticao() {
   return useMutation({
     mutationFn: async ({
       id,
+      dadosBasicos,
       ...body
     }: {
       id: string
@@ -136,8 +137,12 @@ export function useUpdatePeticao() {
       tipoPeticao?: string
       tipoPeticaoPje?: string
       descricaoPje?: string
+      dadosBasicos?: NovaPeticaoFormData['dadosBasicos']
     }): Promise<Peticao> => {
-      const { data } = await apiClient.patch<Peticao>(`/peticoes/${id}`, body)
+      const payload: Record<string, unknown> = { ...body }
+      const db = sanitizeDadosBasicos(dadosBasicos)
+      if (db) payload.dadosBasicos = db
+      const { data } = await apiClient.patch<Peticao>(`/peticoes/${id}`, payload)
       return data
     },
     onSuccess: (_, variables) => {

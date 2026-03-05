@@ -42,6 +42,21 @@ class Settings(BaseSettings):
     browser_pool_size: int = 2
     browser_max_uses: int = 20
 
+    # ── Certificado A1 para login no PJe (scraper de comarcas / peticionamento) ──
+    # Path dentro do container: /app/shared-docs/Amanda Alves de Sousa_07071649316.pfx
+    pje_pfx_path: str = "/app/shared-docs/Amanda Alves de Sousa_07071649316.pfx"
+    pje_pfx_password: str = "22051998"
+    # TOTP base32 secret (vazio = sem 2FA)
+    pje_totp_secret: str = ""
+
+    # ── Comunicação interna com o backend FastAPI ──
+    # Usado pelo scraper para sincronizar dados coletados com o banco via API REST
+    backend_url: str = "http://backend:8000"
+
+    # ── Scheduler de coleta de comarcas ──
+    # Intervalo em horas para re-executar a coleta automática (0 = desabilitado)
+    comarcas_refresh_interval_hours: int = 30
+
 
 settings = Settings()
 

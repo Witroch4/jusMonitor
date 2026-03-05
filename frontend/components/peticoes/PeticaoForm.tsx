@@ -22,6 +22,7 @@ interface Props {
   onVoltar: () => void
   rascunhoId?: string
   initialProcessoNumero?: string
+  onRascunhoSalvo?: (id: string) => void
 }
 
 const INITIAL_FORM: NovaPeticaoFormData = {
@@ -40,7 +41,7 @@ const INITIAL_FORM: NovaPeticaoFormData = {
   },
 }
 
-export function PeticaoForm({ onVoltar, rascunhoId, initialProcessoNumero }: Props) {
+export function PeticaoForm({ onVoltar, rascunhoId, initialProcessoNumero, onRascunhoSalvo }: Props) {
   const isEditMode = !!rascunhoId
   const [formData, setFormData] = useState<NovaPeticaoFormData>(() => (
     initialProcessoNumero ? { ...INITIAL_FORM, processoNumero: initialProcessoNumero } : INITIAL_FORM
@@ -71,7 +72,38 @@ export function PeticaoForm({ onVoltar, rascunhoId, initialProcessoNumero }: Pro
       assunto: rascunho.assunto ?? '',
       descricao: rascunho.descricao ?? '',
       certificadoId: rascunho.certificadoId ?? '',
-      dadosBasicos: INITIAL_FORM.dadosBasicos,
+      dadosBasicos: rascunho.dadosBasicos
+        ? (() => {
+            const savedPolos = rascunho.dadosBasicos.polos ?? []
+            // Garante que AT e PA sempre existem (sanitize remove polos sem partes ao salvar)
+            const REQUIRED_POLES = ['AT', 'PA']
+            const polos = REQUIRED_POLES.map((poloCode) => {
+              const found = savedPolos.find((p) => p.polo === poloCode)
+              if (found) {
+                return {
+                  ...found,
+                  partes: found.partes?.length ? found.partes : [{ nome: '', tipoPessoa: 'fisica' as const }],
+                  advogados: found.advogados ?? [],
+                }
+              }
+              // Polo não foi salvo — retorna polo vazio padrão
+              return INITIAL_FORM.dadosBasicos!.polos.find((p) => p.polo === poloCode) ?? {
+                polo: poloCode,
+                partes: [{ nome: '', tipoPessoa: 'fisica' as const }],
+                advogados: [],
+              }
+            })
+            // Adiciona outros polos extras que possam ter sido salvos (TC, etc.)
+            const extraPolos = savedPolos
+              .filter((p) => !REQUIRED_POLES.includes(p.polo))
+              .map((p) => ({
+                ...p,
+                partes: p.partes?.length ? p.partes : [{ nome: '', tipoPessoa: 'fisica' as const }],
+                advogados: p.advogados ?? [],
+              }))
+            return { ...rascunho.dadosBasicos, polos: [...polos, ...extraPolos] }
+          })()
+        : INITIAL_FORM.dadosBasicos,
       tipoPeticaoPje: rascunho.tipoPeticaoPje ?? '',
       descricaoPje: rascunho.descricaoPje ?? '',
     })
@@ -142,6 +174,7 @@ export function PeticaoForm({ onVoltar, rascunhoId, initialProcessoNumero }: Pro
           assunto: formData.assunto || undefined,
           descricao: formData.descricao || undefined,
           certificadoId: formData.certificadoId || undefined,
+          dadosBasicos: formData.dadosBasicos,
         })
         peticaoId = rascunhoId
       } else {
@@ -201,6 +234,7 @@ export function PeticaoForm({ onVoltar, rascunhoId, initialProcessoNumero }: Pro
           assunto: formData.assunto || undefined,
           descricao: formData.descricao || undefined,
           certificadoId: formData.certificadoId || undefined,
+          dadosBasicos: formData.dadosBasicos,
         })
         peticaoId = rascunhoId
       } else {
@@ -220,9 +254,18 @@ export function PeticaoForm({ onVoltar, rascunhoId, initialProcessoNumero }: Pro
           sigiloso: f.sigiloso,
         })
       }
+      // Clear pending uploads — they are now saved as existing documents
+      if (uploadedFiles.length > 0) {
+        setFiles((prev) => prev.filter((f) => f.status !== 'uploaded'))
+      }
+
+      // If this was a brand-new draft, notify parent of the new ID
+      if (!isEditMode) {
+        setFormPopulated(true) // prevent re-populate effect from overwriting current state
+        onRascunhoSalvo?.(peticaoId)
+      }
 
       toast.success('Rascunho salvo com sucesso!')
-      onVoltar()
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erro ao salvar rascunho'
       toast.error(msg)
@@ -231,7 +274,7 @@ export function PeticaoForm({ onVoltar, rascunhoId, initialProcessoNumero }: Pro
     }
   }
 
-  if (isEditMode && isLoadingRascunho) {
+  if (isEditMode && isLoadingRascunho && !formPopulated) {
     return (
       <div className="space-y-6">
         <div className="h-8 w-48 bg-muted animate-pulse rounded" />
