@@ -37,6 +37,23 @@ class EventType(str, Enum):
     DOCUMENT_DRAFTED = "document.drafted"
     EMBEDDING_CREATED = "embedding.created"
 
+    # Contract events
+    CONTRATO_CREATED = "contrato.created"
+    CONTRATO_ACTIVATED = "contrato.activated"
+    CONTRATO_SUSPENDED = "contrato.suspended"
+    CONTRATO_CANCELLED = "contrato.cancelled"
+    CONTRATO_ENCERRADO = "contrato.encerrado"
+    CONTRATO_EXPIRING = "contrato.expiring"
+
+    # Financial events
+    FATURA_CREATED = "fatura.created"
+    FATURA_PAGA = "fatura.paga"
+    FATURA_VENCIDA = "fatura.vencida"
+
+    # Cobranca events
+    COBRANCA_ENVIADA = "cobranca.enviada"
+    COBRANCA_FALHOU = "cobranca.falhou"
+
     # Notification events
     NOTIFICATION_SENT = "notification.sent"
     NOTIFICATION_FAILED = "notification.failed"
@@ -212,4 +229,65 @@ class NotificationFailedEvent(BaseEvent):
     notification_id: UUID
     channel: str
     recipient_id: str
+    error: str
+
+
+class ContratoCreatedEvent(BaseEvent):
+    """Event for contract creation."""
+
+    event_type: EventType = EventType.CONTRATO_CREATED
+    contrato_id: UUID
+    client_id: UUID
+
+
+class ContratoExpiringEvent(BaseEvent):
+    """Event for contract approaching expiration."""
+
+    event_type: EventType = EventType.CONTRATO_EXPIRING
+    contrato_id: UUID
+    days_remaining: int
+
+
+class FaturaCreatedEvent(BaseEvent):
+    """Event for invoice creation."""
+
+    event_type: EventType = EventType.FATURA_CREATED
+    fatura_id: UUID
+    contrato_id: UUID
+    valor: float
+
+
+class FaturaPagaEvent(BaseEvent):
+    """Event for paid invoice."""
+
+    event_type: EventType = EventType.FATURA_PAGA
+    fatura_id: UUID
+    contrato_id: UUID
+    valor: float
+
+
+class FaturaVencidaEvent(BaseEvent):
+    """Event for overdue invoice."""
+
+    event_type: EventType = EventType.FATURA_VENCIDA
+    fatura_id: UUID
+    contrato_id: UUID
+    dias_atraso: int
+
+
+class CobrancaEnviadaEvent(BaseEvent):
+    """Event for sent collection notice."""
+
+    event_type: EventType = EventType.COBRANCA_ENVIADA
+    cobranca_id: UUID
+    canal: str
+    client_id: UUID
+
+
+class CobrancaFalhouEvent(BaseEvent):
+    """Event for failed collection notice."""
+
+    event_type: EventType = EventType.COBRANCA_FALHOU
+    cobranca_id: UUID
+    canal: str
     error: str

@@ -40,6 +40,10 @@ from app.db.models.user_integration import UserIntegration, IntegrationType
 from app.db.models.caso_oab import CasoOAB
 from app.db.models.oab_sync_config import OABSyncConfig
 from app.db.models.scrape_job import ScrapeJob
+from app.db.models.contrato import Contrato, TipoContrato, StatusContrato, IndiceReajuste
+from app.db.models.fatura import Fatura, StatusFatura, FormaPagamento
+from app.db.models.lancamento import Lancamento, TipoLancamento, CategoriaLancamento
+from app.db.models.cobranca import Cobranca, TipoCobranca, StatusCobranca, CanalCobranca
 
 __all__ = [
     "Tenant",
@@ -86,4 +90,18 @@ __all__ = [
     "CasoOAB",
     "OABSyncConfig",
     "ScrapeJob",
+    "Contrato",
+    "TipoContrato",
+    "StatusContrato",
+    "IndiceReajuste",
+    "Fatura",
+    "StatusFatura",
+    "FormaPagamento",
+    "Lancamento",
+    "TipoLancamento",
+    "CategoriaLancamento",
+    "Cobranca",
+    "TipoCobranca",
+    "StatusCobranca",
+    "CanalCobranca",
 ]
