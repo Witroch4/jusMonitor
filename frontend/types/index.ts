@@ -224,6 +224,30 @@ export interface ChangePasswordData {
   confirm_password: string
 }
 
+// Contract types
+export type {
+  ContratoTipo,
+  ContratoStatus,
+  IndiceReajuste,
+  ClausulaContrato,
+  Contrato,
+  ContratoListResponse,
+} from './contratos'
+
+// Financial types
+export type {
+  FaturaStatus,
+  FormaPagamento,
+  LancamentoTipo,
+  LancamentoCategoria,
+  Fatura,
+  FaturaListResponse,
+  Lancamento,
+  LancamentoListResponse,
+  ResumoReceitas,
+  FinanceiroDashboard,
+} from './financeiro'
+
 // Integration types
 export interface InstagramStatus {
   connected: boolean

@@ -166,3 +166,15 @@ def _register_default_tasks() -> None:
         register_task("oab_scraper_sync", sync_all_oab_jobs)
     except ImportError:
         logger.warning("Could not import oab_sync task")
+
+    try:
+        from app.workers.tasks.contratos import (
+            check_vencimentos,
+            gerar_faturas_recorrentes,
+            enviar_cobrancas_pendentes,
+        )
+        register_task("check_vencimentos", check_vencimentos)
+        register_task("gerar_faturas_recorrentes", gerar_faturas_recorrentes)
+        register_task("enviar_cobrancas_pendentes", enviar_cobrancas_pendentes)
+    except ImportError:
+        logger.warning("Could not import contratos tasks")

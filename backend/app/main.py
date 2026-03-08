@@ -248,6 +248,14 @@ Endpoints de listagem suportam paginação via query parameters:
             "name": "tribunais",
             "description": "Registro de tribunais com endpoints MNI e configurações",
         },
+        {
+            "name": "contratos",
+            "description": "Gestão de contratos jurídicos",
+        },
+        {
+            "name": "financeiro",
+            "description": "Gestão financeira: faturas, lançamentos e dashboard",
+        },
     ],
 )
 
@@ -410,6 +418,13 @@ app.include_router(tpu_router, prefix=settings.api_v1_prefix, tags=["tpu"])
 from app.api.v1.endpoints.casos_oab import router as casos_oab_router
 
 app.include_router(casos_oab_router, prefix=settings.api_v1_prefix, tags=["casos-oab"])
+
+# Contratos e Financeiro endpoints
+from app.api.v1.endpoints.contratos import router as contratos_router
+from app.api.v1.endpoints.financeiro import router as financeiro_router
+
+app.include_router(contratos_router, prefix=settings.api_v1_prefix, tags=["contratos"])
+app.include_router(financeiro_router, prefix=settings.api_v1_prefix, tags=["financeiro"])
 
 # S3/MinIO storage — presigned URL generation
 from app.api.v1.endpoints.storage import router as storage_router
